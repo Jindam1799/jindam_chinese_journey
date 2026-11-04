@@ -12,7 +12,7 @@
     '그때, 말의 나무가 마지막 힘으로 씨앗 세 알을 떨어뜨렸어요.\n새싹 툭이, 물방울 퐁이, 도토리 도토가 태어났어요!',
     '새싹 정령 툭이는 말의 나무 가지 끝, 가장 여린 새싹에서 깨어났어요.\n포물선 씨앗탄을 던지고, 무엇이든 고르게 잘해요!',
     '물방울 정령 퐁이는 리강의 맑은 물방울에서 깨어났어요.\n누구보다 빠르게 달리며 물방울탄을 일직선으로 쏘아요!',
-    '도토리 정령 도토는 황산 소나무의 도토리에서 깨어났어요.\n느릿느릿해도 힘이 세서 한 방이면 몬스터가 데굴데굴!',
+    '도토리 정령 도토는 황산 소나무의 도토리에서 깨어났어요.\n도토리 구체를 뻥 날려 펑! 터뜨리면 주변 몬스터까지 한꺼번에!',
     '세 정령은 힘을 모아 길을 떠났어요.\n“봉인하고 차서 날려 버리자! 말의 조각을 모두 되찾자!”'
   ];
 
@@ -220,25 +220,49 @@
       this.add2(DT.text(this, 220, 120, '퐁이', { font: 'ko', size: 22, color: '#73eff7', strokeThickness: 4 }));
       this.add2(DT.text(this, 220, 144, '빠르다! 일직선!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
     }
-    /* ── 컷 8: 도토 소개 (황산) ── */
+    /* ── 컷 8: 도토 소개 (황산) — 도토리 구체를 날려 펑! 주변까지 한꺼번에 ── */
     shot7() {
       this.add2(this.add.image(0, 0, 'bg_huangshan').setOrigin(0));
-      const doto = this.add2(this.add.sprite(110, 172, 'hero_doto', 0).setScale(2.8));
+      const doto = this.add2(this.add.sprite(52, 172, 'hero_doto', 0).setScale(2.6));
       doto.play('doto_idle');
-      const rock = this.add2(this.add.sprite(230, 172, 'snail', 0).setScale(2.6).setFlipX(true));
-      rock.play('snail_walk');
-      this.time.delayedCall(700, () => {
-        doto.setFrame(13); DT.Audio.sfx('kick'); this.cameras.main.shake(260, 0.01);
-        const a = this.add2(this.add.image(130, 176, 'seed_doto').setScale(2.4));
-        this.tweens.add({ targets: a, x: 222, angle: 720, duration: 450, onComplete: () => {
-          a.destroy(); DT.Audio.sfx('burst');
-          this.tweens.add({ targets: rock, x: 380, y: 80, angle: 900, duration: 900 });
-          const r = this.add2(this.add.sprite(226, 170, 'ring', 0).setTint(0xffcd75).setScale(2)); r.play('fx_ring');
+      // 도토리 구체에 갇힌 몬스터 하나 + 저 멀리 몬스터 무리
+      const orb = this.add2(this.add.image(84, 172, 'orb_doto').setScale(2.4));
+      const inner = this.add2(this.add.sprite(84, 172, 'mush', 2).setScale(2));
+      inner.play('mush_struggle');
+      this.tweens.add({ targets: [orb, inner], angle: { from: -6, to: 6 }, yoyo: true, repeat: 3, duration: 120 });
+      const crowd = [['gob', 214, 172], ['snail', 240, 172], ['frog', 266, 172], ['bird', 238, 140]].map(([k, x, y]) => {
+        const m = this.add2(this.add.sprite(x, y, k, 0).setScale(2.2).setFlipX(true)); m.play(k + '_walk'); return m;
+      });
+      // 뻥 차기!
+      this.time.delayedCall(800, () => {
+        doto.anims.stop(); doto.setFrame(12);
+        DT.Audio.sfx('kick');
+        this.add2(DT.text(this, 74, 146, '뻥!', { font: 'ko', size: 12, color: '#ffcd75', strokeThickness: 3 }));
+        this.tweens.addCounter({ from: 0, to: 1, duration: 650, ease: 'Quad.easeIn', onUpdate: (tw) => {
+          const t = tw.getValue(); const x = 84 + (240 - 84) * t, y = 172 - Math.sin(t * Math.PI) * 30;
+          orb.setPosition(x, y).setAngle(t * 720); inner.setPosition(x, y).setAngle(t * 720);
+        }, onComplete: () => {
+          // 펑! 폭발 → 주변 몬스터까지 모두 날아감
+          orb.destroy(); inner.destroy();
+          DT.Audio.sfx('burst');
+          this.cameras.main.shake(320, 0.012);
+          this.cameras.main.flash(120, 255, 236, 180);
+          const fx = DT.FX.play(this, 'poof', 240, 182, { scale: 1.6, depth: 30 });
+          if (fx) this.layer.add(fx);
+          const r = this.add2(this.add.sprite(240, 168, 'ring', 0).setTint(0xffcd75).setScale(3.2)); r.play('fx_ring');
+          this.add2(DT.text(this, 240, 118, '펑!', { font: 'ko', size: 26, color: '#ef7d57', strokeThickness: 5 }));
+          crowd.forEach((m, i) => {
+            const dir = m.x < 240 ? -1 : 1;
+            this.tweens.add({ targets: m, x: m.x + dir * (90 + i * 20), y: m.y - 120 - i * 15, angle: dir * 540, alpha: 0, duration: 900, ease: 'Quad.easeOut' });
+          });
+          const sp = this.add.particles(0, 0, 'star', { speed: { min: 80, max: 220 }, lifespan: 800, gravityY: 250, scale: { start: 1.4, end: 0 }, emitting: false,
+            tint: [0xffcd75, 0xef7d57, 0xf2c38a] });
+          this.add2(sp); sp.explode(30, 240, 168);
           doto.play('doto_win');
         } });
       });
-      this.add2(DT.text(this, 150, 92, '도토', { font: 'ko', size: 22, color: '#ffcd75', strokeThickness: 4 }));
-      this.add2(DT.text(this, 150, 116, '느려도 한 방은 최고!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+      this.add2(DT.text(this, 110, 86, '도토', { font: 'ko', size: 22, color: '#ffcd75', strokeThickness: 4 }));
+      this.add2(DT.text(this, 110, 110, '날리고, 펑! 한꺼번에!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
     }
     /* ── 컷 9: 결심! 봉인 시범 ── */
     shot8() {
