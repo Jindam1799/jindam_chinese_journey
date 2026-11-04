@@ -32,7 +32,6 @@
       const logo = DT.text(this, 160, 56, '덩어리 숲', { font: 'ko', size: 38, color: '#a7f070', stroke: '#1a1c2c', strokeThickness: 6 });
       this.tweens.add({ targets: [logo, shadow], y: '-=3', yoyo: true, repeat: -1, duration: 900, ease: 'Sine.easeInOut' });
       DT.text(this, 160, 88, '사라진 말의 조각', { font: 'ko', size: 14, color: '#ffcd75', strokeThickness: 3 });
-      DT.text(this, 160, 104, '块  ·  CHUNK  FOREST', { font: 'zh', size: 8, color: '#29366f', stroke: null });
 
       // 캐릭터
       DT.HEROES.forEach((h, i) => {
