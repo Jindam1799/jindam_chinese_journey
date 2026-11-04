@@ -50,19 +50,39 @@
         this.tweens.add({ targets: s, x: m[1] + 26, yoyo: true, repeat: -1, duration: 1800 + i * 300, onYoyo: () => s.setFlipX(true), onRepeat: () => s.setFlipX(false) });
       });
 
-      const start = DT.text(this, 160, 182, this.isTouch() ? '공격 버튼을 눌러 시작' : 'Z 키를 눌러 시작', { font: 'ko', size: 12, color: '#f4f4f4', strokeThickness: 3 });
-      this.tweens.add({ targets: start, alpha: 0.15, yoyo: true, repeat: -1, duration: 450 });
+      // 메뉴: 게임 시작 · 스토리 · 명예의 전당 · 설정
+      this.menu = [['게임 시작', 'start'], ['스토리', 'story'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
+        const x = 52 + i * 72;
+        const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 });
+        this.add.zone(x, 182, 66, 18).setInteractive({ useHandCursor: true }).on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.sel = i; this.pick(); });
+        return { t, act: m[1], x };
+      });
+      this.sel = 0;
+      this.cursor = this.add.image(0, 182, 'cursor').setOrigin(1, 0.5);
+      this.tweens.add({ targets: this.cursor, alpha: 0.3, yoyo: true, repeat: -1, duration: 300 });
+      this.refreshMenu();
       DT.text(this, 160, 198, '← →  이동     SPACE  점프     Z  씨앗탄', { font: 'ko', size: 8, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 2 });
-      DT.text(this, 160, 210, this.isTouch() ? '점프 버튼: 스토리 보기' : 'SPACE: 스토리 보기', { font: 'ko', size: 8, color: '#ffcd75', stroke: '#1a1c2c', strokeThickness: 2 });
+      DT.text(this, 160, 211, this.isTouch() ? '◀▶ 메뉴 고르기 · 공격 버튼 결정' : '←→ 메뉴 고르기 · Z 결정', { font: 'ko', size: 8, color: '#ffcd75', stroke: '#1a1c2c', strokeThickness: 2 });
       DT.ptext(this, 4, 3, 'HI ' + DT.pad(DT.getHi(), 7), { tint: 0xffcd75 });
       DT.ptext(this, 316, 3, 'V' + DT.VERSION, { ox: 1, tint: 0x566c86 });
-      DT.text(this, 160, 232, '© 진담중국어  ·  PROTOTYPE', { font: 'ko', size: 7, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 2 });
+      DT.text(this, 160, 231, DT.COPYRIGHT, { font: 'ko', size: 7, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 2 });
 
       this.starting = false;
-      this.input.on('pointerdown', () => this.begin());
-      DT.Audio.music(false);
+      DT.Audio.music(true, 'title');
     }
     isTouch() { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0; }
+    refreshMenu() {
+      this.menu.forEach((m, i) => m.t.setColor(i === this.sel ? '#ffcd75' : '#ffffff').setScale(i === this.sel ? 1.12 : 1));
+      const m = this.menu[this.sel];
+      this.cursor.setX(m.x - m.t.width * 0.56 - 2);
+    }
+    pick() {
+      const a = this.menu[this.sel].act;
+      if (a === 'start') this.begin(false);
+      else if (a === 'story') this.begin(true);
+      else if (a === 'hall') { DT.Audio.sfx('select'); this.scene.start('Hall', { next: 'Title' }); }
+      else if (a === 'settings') { DT.Audio.unlock(); DT.openSettings(); }
+    }
     begin(story) {
       if (this.starting) return;
       this.starting = true;
@@ -77,16 +97,24 @@
     }
     update() {
       DT.Input.update();
-      if (DT.Input.justDown('jump')) this.begin(true);
-      else if (DT.Input.justDown('fire') || DT.Input.justDown('confirm')) this.begin(false);
+      const I = DT.Input, n = this.menu.length;
+      if (I.justDown('left') || I.justDown('up')) { this.sel = (this.sel + n - 1) % n; this.refreshMenu(); DT.Audio.sfx('select'); }
+      if (I.justDown('right') || I.justDown('down')) { this.sel = (this.sel + 1) % n; this.refreshMenu(); DT.Audio.sfx('select'); }
+      if (I.justDown('jump')) this.begin(true);
+      else if (I.justDown('fire') || I.justDown('confirm')) this.pick();
     }
   }
 
   class GameOverScene extends Phaser.Scene {
     constructor() { super('GameOver'); }
-    init(d) { this.run = (d && d.run) || DT.newRun('tuk'); this.d = { score: this.run.score }; }
+    init(d) { this.run = (d && d.run) || DT.newRun('tuk'); this.d = { score: this.run.score }; this.recorded = !!(d && d.recorded); }
     create() {
       DT.setupCamera(this);
+      if (!this.recorded && DT.HOF.qualifies(this.run.score)) {
+        const st = DT.DATA.stages[this.run.stage];
+        this.scene.start('NameEntry', { score: this.run.score, hero: this.run.hero, stage: st ? st.id : '', next: { key: 'GameOver', data: { run: this.run, recorded: true } } });
+        return;
+      }
       this.add.rectangle(0, 0, DT.W, DT.H, DT.C.ink, 1).setOrigin(0);
       const go = DT.ptext(this, 160, 60, 'GAME OVER', { ox: 0.5, oy: 0.5, tint: 0xb13e53, scale: 0.5 });
       this.tweens.add({ targets: go, scale: 3, duration: 500, ease: 'Bounce.easeOut' });
@@ -118,18 +146,19 @@
     }
     update() {
       DT.Input.update();
-      if (DT.Input.anyStart()) this.retry();
+      if (this.cont && DT.Input.anyStart()) this.retry();
     }
   }
 
   class EndingScene extends Phaser.Scene {
     constructor() { super('Ending'); }
-    init(d) { const r = (d && d.run) || DT.newRun('tuk'); this.d = { score: r.score, maxCombo: r.maxCombo, learned: r.learned }; }
+    init(d) { const r = this.run = (d && d.run) || DT.newRun('tuk'); this.d = { score: r.score, maxCombo: r.maxCombo, learned: r.learned }; }
     create() {
       DT.setupCamera(this);
       this.add.image(0, 0, 'bg_huangshan').setOrigin(0);
       DT.saveHi(this.d.score || 0);
       DT.Audio.sfx('perfect');
+      DT.Audio.music(true, 'title');
       DT.panel(this, 30, 16, 260, 208, { border: DT.C.yellow, fill: DT.C.ink, alpha: 0.95 });
       const t = DT.ptext(this, 160, 28, 'ALL CLEAR!', { ox: 0.5, tint: 0xffcd75, scale: 0.5 });
       this.tweens.add({ targets: t, scale: 2.5, duration: 400, ease: 'Back.easeOut' });
@@ -149,11 +178,17 @@
       this.tweens.add({ targets: s, alpha: 0.2, yoyo: true, repeat: -1, duration: 450 });
       this.ready = false;
       this.time.delayedCall(1200, () => { this.ready = true; });
-      this.input.on('pointerdown', () => this.ready && this.scene.start('Title'));
+      DT.text(this, 160, 232, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#e8f4ff', strokeThickness: 2 });
+      this.input.on('pointerdown', () => this.ready && this.leave());
+    }
+    leave() {
+      this.ready = false;
+      if (DT.HOF.qualifies(this.d.score)) this.scene.start('NameEntry', { score: this.d.score, hero: this.run.hero, stage: 'CLEAR', next: 'Title' });
+      else this.scene.start('Hall', { next: 'Title' });
     }
     update() {
       DT.Input.update();
-      if (this.ready && DT.Input.anyStart()) this.scene.start('Title');
+      if (this.ready && DT.Input.anyStart()) this.leave();
     }
   }
 

@@ -60,4 +60,5 @@ Google Fonts에서 불러옵니다 (저장소에 포함하지 않음).
 - **Do Hyeon** — Copyright (c) Woowahan Brothers. https://fonts.google.com/specimen/Do+Hyeon
 - **ZCOOL KuaiLe** — Copyright (c) The ZCOOL KuaiLe Project Authors. https://fonts.google.com/specimen/ZCOOL+KuaiLe
 
-게임 안의 영문·숫자 픽셀 폰트, 캐릭터·몬스터·배경 도트 그래픽, 효과음과 배경음은 이 프로젝트에서 직접 만든 것입니다.
+게임 안의 영문·숫자 픽셀 폰트, 캐릭터·몬스터·배경 도트 그래픽, 효과음과 배경음은 이 프로젝트에서 직접 만든 것이며
+© 2026 진담중국어 (Jindam Chinese). All rights reserved.

@@ -66,6 +66,7 @@
         { font: 'ko', size: 7, color: '#94b0c2', stroke: null });
       this.refresh();
       this.cursorBase = null;
+      DT.Audio.music(true, 'menu');
     }
 
     drawBox(o, state) {

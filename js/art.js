@@ -469,8 +469,41 @@
         addFrames(scene, 'platR_' + name, 16, 8, 1, (ctx, ox) => drawPlatform(ctx, ox, rng, 'r', T));
         addFrames(scene, 'platLR_' + name, 16, 8, 1, (ctx, ox) => drawPlatform(ctx, ox, rng, 'lr', T));
         addSingle(scene, 'bg_' + name, DT.W, DT.H, (ctx) => drawThemeBg(ctx, name));
+        // 진담 점프용: 무너지는 발판(금 간 발판) · 움직이는 발판(3칸)
+        addSingle(scene, 'crumble_' + name, 16, 8, (ctx) => {
+          drawPlatform(ctx, 0, rng, 'lr', T);
+          [[4, 2], [5, 3], [6, 4], [6, 5], [11, 1], [10, 2], [10, 3], [11, 4]].forEach(p => px(ctx, p[0], p[1], '#1a1c2c'));
+          rect(ctx, 0, 7, 16, 1, '#b13e53');
+        });
+        addSingle(scene, 'mplat_' + name, 48, 8, (ctx) => {
+          drawPlatform(ctx, 0, rng, 'l', T); drawPlatform(ctx, 16, rng, '', T); drawPlatform(ctx, 32, rng, 'r', T);
+          rect(ctx, 22, 4, 4, 2, '#ffcd75'); px(ctx, 21, 5, '#ffcd75'); px(ctx, 26, 4, '#ffcd75');
+        });
       });
       addSingle(scene, 'bg_night', DT.W, DT.H, drawNightBg);
+      // 진담 점프: 올라오는 가시덩굴 / 독초 (가로로 이어지는 32x40 타일)
+      addSingle(scene, 'hazard_thorn', 32, 40, (ctx) => {
+        const rng = DT.rng(5);
+        rect(ctx, 0, 10, 32, 30, '#2f5a2a');
+        for (let y = 12; y < 40; y += 3) for (let x = (y % 2) * 2; x < 32; x += 5) rect(ctx, x, y, 3, 1, '#3f7f3a');
+        for (let x = 0; x < 32; x++) { const h = 3 + Math.round(Math.abs(Math.sin(x * 0.9)) * 6); rect(ctx, x, 10 - h, 1, h, '#3f7f3a'); }
+        [[2, 1], [9, 3], [15, 0], [22, 2], [28, 1]].forEach(t => { rect(ctx, t[0], t[1] + 2, 2, 3, '#b13e53'); px(ctx, t[0], t[1], '#ff8c9a'); px(ctx, t[0] + 1, t[1] + 1, '#ff8c9a'); });
+        for (let i = 0; i < 10; i++) { const x = Math.floor(rng() * 30), y = 14 + Math.floor(rng() * 24); px(ctx, x, y, '#b13e53'); px(ctx, x + 1, y - 1, '#ff8c9a'); }
+      });
+      addSingle(scene, 'hazard_poison', 32, 40, (ctx) => {
+        const rng = DT.rng(9);
+        rect(ctx, 0, 10, 32, 30, '#4a2560');
+        for (let y = 12; y < 40; y += 3) for (let x = (y % 2) * 3; x < 32; x += 6) rect(ctx, x, y, 3, 1, '#6a3a80');
+        for (let x = 0; x < 32; x++) { const h = 2 + Math.round(Math.abs(Math.sin(x * 0.7 + 1)) * 8); rect(ctx, x, 10 - h, 1, h, x % 4 < 2 ? '#7bd389' : '#5aa85a'); }
+        [[4, 3], [13, 1], [20, 4], [27, 2]].forEach(b => { disc(ctx, b[0], b[1] + 8, 2, '#c46ad8'); px(ctx, b[0] - 1, b[1] + 7, '#f0c0ff'); });
+        for (let i = 0; i < 8; i++) { const x = Math.floor(rng() * 30), y = 14 + Math.floor(rng() * 24); disc(ctx, x, y, 1, '#c46ad8'); }
+      });
+      addSingle(scene, 'goalflag', 18, 30, (ctx) => {
+        rect(ctx, 1, 0, 2, 30, '#1a1c2c'); rect(ctx, 1, 0, 1, 30, '#94b0c2');
+        rect(ctx, 3, 1, 14, 10, '#1a1c2c'); rect(ctx, 3, 2, 13, 8, '#f4566a'); rect(ctx, 3, 2, 13, 2, '#ff8c9a');
+        rect(ctx, 7, 4, 5, 4, '#ffcd75'); px(ctx, 9, 5, '#f4566a');
+        disc(ctx, 2, 0, 1, '#ffcd75');
+      });
       // 퐁이의 물결 (오른쪽으로 흐르는 파도) 2프레임
       addFrames(scene, 'wave', 28, 20, 2, (ctx, ox, f) => {
         for (let x = 0; x < 28; x++) {

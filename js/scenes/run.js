@@ -49,6 +49,7 @@
       DT.text(this, 160, 226, '← → 선택    Z(공격) 결정', { font: 'ko', size: 9, color: '#ffffff', strokeThickness: 3 });
       this.refresh();
       this.done = false;
+      DT.Audio.music(true, 'menu');
     }
     refresh() {
       this.cards.forEach((k, i) => {
@@ -107,6 +108,7 @@
       DT.text(this, 160, 222, '← → 선택    Z(공격) 결정    ·    다음: ' + (next ? next.name : ''), { font: 'ko', size: 8, color: '#ffcd75', strokeThickness: 2 });
       this.cardObjs = [];
       this.deal();
+      DT.Audio.music(true, 'menu');
     }
     deal() {
       this.cardObjs.forEach(o => o.c.destroy());
@@ -158,7 +160,7 @@
       this.busy = true;
       const u = this.options[this.sel], k = this.cardObjs[this.sel];
       DT.applyUpgrade(this.run, u.id);
-      DT.Audio.sfx('chunk');
+      DT.Audio.sfx('levelup');
       this.cameras.main.flash(120, 255, 240, 180);
       const fx = this.add.particles(0, 0, 'star', { speed: { min: 60, max: 180 }, lifespan: 700, gravityY: 200, scale: { start: 1, end: 0 }, emitting: false,
         tint: [0xffcd75, 0xa7f070, 0x73eff7] });

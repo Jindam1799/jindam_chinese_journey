@@ -90,6 +90,58 @@ function makeMap(layout, enemies, R) {
   return m;
 }
 
+/* ── 진담 점프: 세로로 긴 등반 맵 (아래에서 가시덩굴·독초가 올라옴) ── */
+function makeClimbMap(rows, R, mix, count) {
+  const m = [];
+  m.push('....................');
+  m.push(E); m.push(E);
+  m.push('#=========G========#');           // 골 발판 + 깃발
+  for (let r = 4; r < rows - 2; r++) m.push(E);
+  m.push('#.........P........#');
+  m.push('####################');
+  // 3줄마다 발판 줄: 조각 2~3개, 일부는 무너지는 발판(C) 또는 움직이는 발판(M)
+  const platRows = [];
+  for (let r = rows - 4; r >= 6; r -= 3) platRows.push(r);
+  platRows.forEach((r, i) => {
+    let row = E;
+    const roll = R();
+    if (i > 1 && roll < 0.16) {
+      const c = 2 + Math.floor(R() * 14);
+      row = set(row, c, 'M');
+      // 움직이는 발판 줄에는 양 끝에 작은 쉼터를 둠
+      row = set(set(row, 1, '='), 2, '=');
+    } else {
+      const segs = 2 + Math.floor(R() * 2);
+      const zones = segs === 2 ? [[1, 9], [10, 18]] : [[1, 6], [7, 12], [13, 18]];
+      zones.forEach(([a, b]) => {
+        const w = 3 + Math.floor(R() * Math.min(4, b - a - 1));
+        const st = a + Math.floor(R() * Math.max(1, b - a - w + 1));
+        const crumble = i > 0 && R() < 0.22;
+        for (let c = st; c < Math.min(19, st + w); c++) row = set(row, c, crumble ? 'C' : '=');
+      });
+    }
+    m[r] = row;
+  });
+  // 몬스터: 단단한 발판(=) 위에만
+  const spots = [];
+  platRows.forEach(r => { for (let c = 1; c < 19; c++) if (m[r][c] === '=' && r < rows - 6) spots.push([r - 1, c]); });
+  const used = new Set();
+  for (let i = 0; i < count && spots.length; i++) {
+    const kind = mix[Math.floor(R() * mix.length)];
+    if (kind === 'bird') {
+      const r = 5 + Math.floor(R() * (rows - 14)), c = 3 + Math.floor(R() * 14);
+      if (m[r][c] === '.') m[r] = set(m[r], c, 'b');
+      continue;
+    }
+    for (let t = 0; t < 30; t++) {
+      const [r, c] = spots[Math.floor(R() * spots.length)];
+      if ([-1, 0, 1].some(d => used.has(r + ',' + (c + d)))) continue;
+      used.add(r + ',' + c); m[r] = set(m[r], c, CODE[kind]); break;
+    }
+  }
+  return m;
+}
+
 const stages = [];
 WORLDS.forEach((w, wi) => {
   const pool = VOCAB[wi].map(v => v.id);
@@ -107,12 +159,20 @@ WORLDS.forEach((w, wi) => {
     for (let i = 0; i < count; i++) enemies.push(w.mix[Math.floor(R() * w.mix.length)]);
     const layout = LAYOUTS[(wi * 3 + n) % LAYOUTS.length];
     stages.push({ id, name: `${w.place} · ${w.names[n]}`, theme: w.theme, chunks, map: makeMap(layout, enemies, R), world: wi + 1 });
+    if (n === 3) {
+      // x-4 다음: 진담 점프 등반 미션
+      const CR = rng(wi * 999 + 17);
+      const rows = 52 + wi * 6;
+      stages.push({ id: `${wi + 1}-J`, name: `${w.place} · 진담 점프!`, theme: w.theme, chunks: [0, 1, 2].map(k => pool[(k * 4 + wi) % pool.length]),
+        map: makeClimbMap(rows, CR, w.mix, 8 + wi * 2), world: wi + 1,
+        climb: { time: 75 - wi * 5, hazard: wi % 2 === 0 ? 'thorn' : 'poison', speed: 9 + wi * 1.5 } });
+    }
   }
 });
 
 const vocab = [].concat(...VOCAB);
 stages.forEach(s => {
-  if (s.map.length !== 15 || s.map.some(r => r.length !== 20)) throw new Error('맵 크기 오류 ' + s.id);
+  if ((!s.climb && s.map.length !== 15) || s.map.some(r => r.length !== 20)) throw new Error('맵 크기 오류 ' + s.id);
 });
 const data = { version: 3, vocab, quiz: [], stages };
 fs.writeFileSync(path.join(ROOT, 'data/game-data.json'), JSON.stringify(data, null, 1));

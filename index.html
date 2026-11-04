@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#1a1c2c">
+<meta name="author" content="진담중국어 (Jindam Chinese)">
+<meta name="copyright" content="© 2026 진담중국어 (Jindam Chinese). All rights reserved.">
+<!-- © 2026 진담중국어 (Jindam Chinese). All rights reserved. 게임 디자인·캐릭터·스토리·교육 콘텐츠의 저작권은 진담중국어에 있습니다. -->
 <title>덩어리 숲: 사라진 말의 조각</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,6 +60,8 @@
   #touch button.on { background: rgba(167,240,112,.6); transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.5); }
   #touch .fire { background: rgba(177,62,83,.6); }
   #touch .jump { background: rgba(37,113,121,.6); margin-bottom: 30px; }
+  #gear-btn { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 52px; z-index: 11; font: inherit; font-size: 15px;
+    padding: 4px 9px; border: 2px solid #566c86; background: rgba(26,28,44,.8); color: #94b0c2; cursor: pointer; }
   #mute-btn { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 8px; z-index: 11; font: inherit; font-size: 15px;
     padding: 4px 9px; border: 2px solid #566c86; background: rgba(26,28,44,.8); color: #94b0c2; cursor: pointer; }
   @media (orientation: portrait) { #touch { padding-bottom: max(28px, env(safe-area-inset-bottom)); } }
@@ -70,7 +75,7 @@
   <h1>덩어리 숲</h1>
   <div class="bar"><i id="load-bar"></i></div>
   <p id="load-msg">불러오는 중…</p>
-  <small>진담중국어 · PROTOTYPE</small>
+  <small>© 2026 진담중국어 (Jindam Chinese). All rights reserved.</small>
 </div>
 
 <div id="error">
@@ -98,6 +103,7 @@
   <span>덩어리 숲은 가로 화면 전용 게임이에요.<br>화면 자동 회전이 꺼져 있다면 켜 주세요.</span>
 </div>
 <button type="button" id="mute-btn" aria-label="소리 켜기/끄기">♪</button>
+<button type="button" id="gear-btn" aria-label="설정" onclick="window.DT && DT.openSettings && DT.openSettings()">⚙</button>
 
 <script>
 (function () {
@@ -139,9 +145,9 @@
   ];
   var GAME_SCRIPTS = [
     'js/core.js', 'js/art-grids.js', 'js/default-data.js', 'js/input.js', 'js/audio.js', 'js/art.js',
-    'js/fx.js', 'js/scenes/menus.js', 'js/scenes/run.js', 'js/scenes/intro.js', 'js/scenes/game.js', 'js/scenes/quiz.js', 'js/main.js'
+    'js/fx.js', 'js/scenes/menus.js', 'js/scenes/run.js', 'js/scenes/intro.js', 'js/scenes/extra.js', 'js/scenes/game.js', 'js/scenes/quiz.js', 'js/main.js'
   ];
-  var V = '?v=0.3.0';
+  var V = '?v=0.4.0';
 
   function load(src) {
     return new Promise(function (res, rej) {

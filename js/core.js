@@ -3,7 +3,7 @@
   'use strict';
   const DT = (window.DT = window.DT || {});
 
-  DT.VERSION = '0.3.0';
+  DT.VERSION = '0.4.0';
   DT.W = 320;   // 논리 해상도 (16px 타일 20 x 15)
   DT.H = 240;
   DT.TILE = 16;
@@ -71,11 +71,11 @@
   };
 
   DT.HEROES = [
-    { id: 'tuk', name: '툭이', title: '새싹 정령', shot: 'arc', orb: 'roll', desc: '포물선 씨앗탄\n구체는 데굴데굴 굴러가요', color: '#a7f070',
+    { id: 'tuk', name: '툭이', title: '새싹 정령', shot: 'arc', orb: 'roll', desc: '포물선을 그리는 씨앗탄\n무엇이든 고르게 잘해요', color: '#a7f070',
       mods: {} },
-    { id: 'pong', name: '퐁이', title: '물방울 정령', shot: 'line', orb: 'wave', desc: '일직선 물방울탄\n구체는 물결이 되어 흘러가요', color: '#73eff7',
+    { id: 'pong', name: '퐁이', title: '물방울 정령', shot: 'line', orb: 'wave', desc: '일직선으로 쏘는 물방울탄\n빠르게 쏘고 빠르게 달려요', color: '#73eff7',
       mods: { fireInterval: 0.72, move: 1.14, seedVx: 0.86 } },
-    { id: 'doto', name: '도토', title: '도토리 정령', shot: 'roll', orb: 'blast', desc: '굴러가는 도토리탄\n구체가 펑! 주변까지 휩쓸어요', color: '#ffcd75',
+    { id: 'doto', name: '도토', title: '도토리 정령', shot: 'roll', orb: 'blast', desc: '바닥을 굴러가는 도토리탄\n한 방이 세고 튼튼해요', color: '#ffcd75',
       mods: { dmg: 1, fireInterval: 1.25, move: 0.9, maxHp: 1, seedVx: 1.08 } }
   ];
 
@@ -172,6 +172,9 @@
     cam.setZoom(DT.Z);
     cam.centerOn(DT.W / 2, DT.H / 2);
     cam.setRoundPixels(true);
+    // 설정에서 '화면 흔들림'을 끄면 흔들림 없음
+    const shake = cam.shake.bind(cam);
+    cam.shake = (d, i, f) => (DT.store.get('dentree_shake', '1') === '1' ? shake(d, i, f) : cam);
     return cam;
   };
 
@@ -273,7 +276,7 @@
   DT.validateData = function (d) {
     if (!d || !Array.isArray(d.vocab) || !Array.isArray(d.quiz) || !Array.isArray(d.stages) || !d.stages.length) return false;
     for (const s of d.stages) {
-      if (!Array.isArray(s.map) || s.map.length !== 15) return false;
+      if (!Array.isArray(s.map) || (s.climb ? s.map.length < 15 : s.map.length !== 15)) return false;
       if (s.map.some(r => typeof r !== 'string' || r.length !== 20)) return false;
       if (!s.map.join('').includes('P')) return false;
     }

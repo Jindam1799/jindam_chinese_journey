@@ -22,7 +22,15 @@
     create() {
       DT.setupCamera(this);
       this.stage = DT.DATA.stages[this.stageIndex];
-      this.physics.world.setBounds(0, 0, DT.W, DT.H);
+      this.climb = this.stage.climb || null;
+      // 씬 객체는 재사용되므로 스테이지별 상태를 매번 초기화
+      this.boss = null; this.goal = null; this.crumbles = null; this.movers = null; this.moverSprites = [];
+      this.hazard = null; this.hazardBody = null; this.riding = null; this.lastSec = undefined;
+      this.lastCombo = null; this.pauseBox = null; this.flag = null; this.ambientFx = null;
+      this.mapH = this.stage.map.length * DT.TILE;
+      this.physics.world.setBounds(0, 0, DT.W, this.mapH);
+      // 화면에 고정되는 UI 레이어 (세로로 스크롤되는 등반 맵에서도 HUD가 그대로)
+      this.ui = this.add.container(0, 0).setDepth(60);
       this.physics.world.gravity.y = T.GRAVITY;
 
       // 상태값
@@ -38,7 +46,7 @@
       this.hudCache = {};
 
       this.theme = DT.THEMES[this.stage.theme] ? this.stage.theme : 'forest';
-      this.add.image(0, 0, 'bg_' + this.theme).setOrigin(0).setDepth(-10);
+      this.bg = this.add.image(0, 0, 'bg_' + this.theme).setOrigin(0).setDepth(-10);
       this.terrain = [];
       this.spawns = [];
       this.buildMap();
@@ -70,8 +78,10 @@
       this.physics.add.overlap(this.enemies, this.frags, this.onEnemyFrag, null, this);
 
       this.buildHud();
+      if (this.climb) this.setupClimb();
       this.readySequence();
-      DT.Audio.music(true);
+      this.musicSpec = this.stage.boss ? { boss: this.stage.world } : { stage: this.stageIndex, world: this.stage.world, climb: !!this.climb };
+      DT.Audio.music(true, this.musicSpec);
     }
 
     /* ───────────── 맵 ───────────── */
@@ -86,8 +96,10 @@
           if (ch === '#') {
             const top = r > 0 && at(r - 1, c) !== '#';
             this.add.image(x, y, (top ? 'groundTop_' : 'stone_') + this.theme, Math.floor(rng() * 4)).setOrigin(0).setDepth(-2);
-          } else if (ch === '=') {
-            const l = at(r, c - 1) !== '=', rr = at(r, c + 1) !== '=';
+          } else if (ch === '=' || ch === 'G') {
+            if (ch === 'G') this.goal = { x: x + 8, y };
+            const isP = (q) => q === '=' || q === 'G';
+            const l = !isP(at(r, c - 1)), rr = !isP(at(r, c + 1));
             const key = l && rr ? 'platLR' : l ? 'platL' : rr ? 'platR' : 'plat';
             this.add.image(x, y, key + '_' + this.theme, key === 'plat' ? Math.floor(rng() * 4) : 0).setOrigin(0).setDepth(-2);
             // 장식
@@ -96,6 +108,13 @@
             if (green && roll < 0.22) this.add.image(x + 4 + Math.floor(rng() * 6), y, 'deco_tuft').setOrigin(0, 1).setDepth(-3);
             else if (this.theme === 'forest' && roll < 0.3) this.add.image(x + 5 + Math.floor(rng() * 5), y, 'deco_shroom').setOrigin(0, 1).setDepth(-3);
             else if (roll < 0.4) this.add.image(x + 6, y, rng() < 0.5 ? 'deco_flower' : 'deco_flower2').setOrigin(0, 1).setDepth(-3);
+          } else if (ch === 'C') {
+            const t = this.physics.add.staticImage(x + 8, y + 4, 'crumble_' + this.theme).setDepth(-2);
+            t.body.setSize(16, 8); t.body.checkCollision.down = t.body.checkCollision.left = t.body.checkCollision.right = false;
+            t.crumble = true; t.home = { x: x + 8, y: y + 4 };
+            (this.crumbles = this.crumbles || []).push(t);
+          } else if (ch === 'M') {
+            (this.movers = this.movers || []).push({ x: x + 8, y: y + 4 });
           } else if (ch === 'P') {
             this.playerSpawn = { x: x + 8, y: y + 16 - 8 * DT.SPR - 0.5 };
           } else if (DT.ENEMY_CODES[ch]) {
@@ -109,9 +128,11 @@
       for (let r = 0; r < map.length; r++) {
         let c = 0;
         while (c < 20) {
-          const ch = at(r, c);
+          let ch = at(r, c);
+          if (ch === 'G') ch = '=';
           if (ch === '#' || ch === '=') {
-            let e = c; while (at(r, e + 1) === ch) e++;
+            const same = (q) => (q === 'G' ? '=' : q) === ch;
+            let e = c; while (same(at(r, e + 1))) e++;
             runs.push({ ch, r, c0: c, c1: e, h: 1 });
             c = e + 1;
           } else c++;
@@ -166,7 +187,7 @@
         speedX: { min: -40, max: 40 }, speedY: { min: -30, max: -5 }, lifespan: 300,
         scale: { start: 1, end: 0 }, tint: 0x94b0c2, alpha: { start: 0.8, end: 0 }
       }, base)).setDepth(8);
-      DT.ambient(this, this.theme, -5);
+      this.ambientFx = DT.ambient(this, this.theme, -5);
     }
 
     ring(x, y, tint, scale) {
@@ -196,6 +217,7 @@
 
     banner(str, tint, scale, life) {
       const t = DT.ptext(this, 160, 112, str, { ox: 0.5, oy: 0.5, tint: tint || 0xffcd75, scale: 0.5, depth: 60 });
+      this.ui.add(t);
       this.tweens.add({ targets: t, scale: scale || 3, duration: 280, ease: 'Back.easeOut' });
       this.tweens.add({ targets: t, alpha: 0, delay: life || 900, duration: 300, onComplete: () => t.destroy() });
       return t;
@@ -375,7 +397,7 @@
       sp.play('fx_spark'); sp.once('animationcomplete', () => sp.destroy());
       this.fxLeaf.explode(power ? 4 : 2, sx, sy);
       this.shootPoseUntil = time + 110;
-      DT.Audio.sfx('shoot');
+      DT.Audio.sfx('shoot', this.heroDef.shot);
     }
 
     popSeed(s) {
@@ -387,6 +409,138 @@
     }
 
     /* ───────────── 몬스터 ───────────── */
+    /* ───────────── 진담 점프: 아래에서 올라오는 가시덩굴/독초를 피해 꼭대기로 ───────────── */
+    setupClimb() {
+      const c = this.climb, cam = this.cameras.main;
+      cam.setBounds(0, 0, DT.W, this.mapH);
+      cam.startFollow(this.player, true, 1, 0.12, 0, 30);
+      cam.on('followupdate', () => this.syncScreenLayer());
+      this.timeLeft = c.time * 1000;
+      this.hazardY = this.mapH + 10;
+      this.hazard = this.add.tileSprite(0, this.hazardY, DT.W, 40, 'hazard_' + c.hazard).setOrigin(0, 0).setDepth(30);
+      this.hazardBody = this.add.rectangle(0, this.hazardY + 39, DT.W, this.mapH + 80, c.hazard === 'thorn' ? 0x2f5a2a : 0x4a2560).setOrigin(0, 0).setDepth(30);
+      this.hazardGlow = this.add.rectangle(0, this.hazardY - 4, DT.W, 4, c.hazard === 'thorn' ? 0xb13e53 : 0xb55088, 0.35).setOrigin(0).setDepth(29);
+      // 골 깃발
+      if (this.goal) {
+        this.flag = this.add.image(this.goal.x, this.goal.y, 'goalflag').setOrigin(0.15, 1).setDepth(5);
+        this.tweens.add({ targets: this.flag, scaleX: 0.92, yoyo: true, repeat: -1, duration: 300 });
+      }
+      // 무너지는 발판
+      if (this.crumbles) {
+        this.physics.add.collider(this.player, this.crumbles, (a, b) => {
+          const t = a === this.player ? b : a;
+          if (!t.falling && this.player.body.touching.down) this.startCrumble(t);
+        });
+        this.physics.add.collider(this.enemies, this.crumbles, null, (e) => e.state !== 'dead');
+      }
+      // 움직이는 발판 (좌우 왕복, 위에 서면 함께 이동)
+      this.moverSprites = (this.movers || []).map((m, i) => {
+        const sp = this.physics.add.image(m.x, m.y, 'mplat_' + this.theme).setDepth(-1);
+        sp.body.setAllowGravity(false); sp.body.setImmovable(true);
+        sp.body.checkCollision.down = sp.body.checkCollision.left = sp.body.checkCollision.right = false;
+        sp.speed = 34 + (i % 3) * 8; sp.dir = i % 2 ? -1 : 1;
+        sp.body.setVelocityX(sp.speed * sp.dir);
+        return sp;
+      });
+      if (this.moverSprites.length) {
+        this.physics.add.collider(this.player, this.moverSprites, (a, b) => { this.riding = a === this.player ? b : a; });
+        this.physics.add.collider(this.enemies, this.moverSprites, null, (e) => e.state !== 'dead');
+        this.physics.add.collider(this.frags, this.moverSprites);
+      }
+      // HUD: 남은 시간 · 높이
+      this.hudTime = DT.ptext(this, 316, 10, 'TIME 00', { ox: 1, tint: 0xffcd75, depth: 41 });
+      this.hudHeight = this.add.graphics().setDepth(41);
+      this.ui.add([this.hudTime, this.hudHeight]);
+      this.hazardName = c.hazard === 'thorn' ? '가시덩굴' : '독초';
+      this.syncScreenLayer();
+    }
+
+    startCrumble(t) {
+      t.falling = true;
+      this.tweens.add({ targets: t, x: t.home.x + 1, yoyo: true, repeat: 5, duration: 40, onComplete: () => {
+        t.body.enable = false;
+        this.tweens.add({ targets: t, y: t.home.y + 20, alpha: 0, duration: 260 });
+        this.fxDust.explode(5, t.x, t.y);
+        DT.Audio.sfx('crumble');
+        this.time.delayedCall(3200, () => {
+          if (!t.active) return;
+          t.setPosition(t.home.x, t.home.y).setAlpha(0); t.body.enable = true; t.body.reset(t.home.x, t.home.y); t.falling = false;
+          this.tweens.add({ targets: t, alpha: 1, duration: 300 });
+        });
+      } });
+    }
+
+    // 화면 고정 레이어(HUD·배경)를 카메라 위치에 맞춤
+    syncScreenLayer() {
+      const v = this.cameras.main.worldView;
+      this.ui.setPosition(v.x, v.y);
+      this.bg.setPosition(v.x, v.y);
+      if (this.ambientFx) this.ambientFx.setPosition(v.x, v.y);
+    }
+
+    updateClimb(time, delta) {
+      const c = this.climb, p = this.player;
+      // 움직이는 발판 왕복 + 올라탄 플레이어 이동
+      (this.moverSprites || []).forEach(sp => {
+        if (sp.x < 32) sp.dir = 1; else if (sp.x > 288) sp.dir = -1;
+        sp.body.setVelocityX(sp.speed * sp.dir);
+      });
+      if (this.riding && p.body.touching.down && !this.dead) p.x += this.riding.body.deltaX();
+      this.riding = null;
+      if (!this.started || this.cleared || this.dead) return;
+      // 제한 시간
+      this.timeLeft -= delta;
+      const sec = Math.max(0, Math.ceil(this.timeLeft / 1000));
+      if (sec !== this.lastSec) {
+        this.lastSec = sec;
+        this.hudTime.setText('TIME ' + DT.pad(sec, 2)).setTint(sec <= 10 ? 0xb13e53 : 0xffcd75);
+        if (sec <= 10 && sec > 0) DT.Audio.sfx('tick');
+        if (sec === 0) { this.banner('TIME UP!', 0xb13e53, 2.5, 1000); this.hintText(this.hazardName + '이(가) 빨라져요! 서둘러요!'); }
+      }
+      // 올라오는 위험 지대: 점점 빨라지고, 너무 뒤처지면 화면 아래까지 따라옴
+      const elapsed = (time - this.stageStartAt) / 1000;
+      let speed = elapsed < 2.5 ? 0 : c.speed + elapsed * 0.18;
+      if (this.timeLeft <= 0) speed *= 4;
+      this.hazardY -= speed * delta / 1000;
+      const viewBottom = this.cameras.main.worldView.bottom;
+      if (this.hazardY > viewBottom + 14) this.hazardY = viewBottom + 14;
+      this.hazard.setY(this.hazardY);
+      this.hazardBody.setY(this.hazardY + 39);
+      this.hazard.tilePositionX = Math.sin(time / 500) * 6;
+      this.hazardGlow.setY(this.hazardY - 4).setAlpha(0.25 + Math.sin(time / 120) * 0.12);
+      if (Math.random() < 0.3) this.fxPx.emitParticleAt(Math.random() * 320, this.hazardY + 2, 1);
+      // 닿으면 피해 + 위로 튕겨 올림
+      if (p.body.bottom > this.hazardY + 5 && time >= this.invUntil) {
+        this.hurtPlayer({ x: p.x, y: p.y + 20 });
+        p.body.setVelocity(0, -420);
+        this.popText(p.x, p.y - 14, 'OUCH!', 0xb13e53);
+      }
+      // 몬스터·조각도 삼킴
+      this.enemies.getChildren().forEach(e => { if (e.active && e.state !== 'dead' && e.y > this.hazardY + 4) this.killEnemy(e, 1); });
+      this.frags.getChildren().slice().forEach(f => { if (f.active && f.y > this.hazardY) { if (f.label) f.label.destroy(); f.destroy(); } });
+      // 높이 게이지
+      const g = this.hudHeight; g.clear();
+      const top = this.goal ? this.goal.y : 48, prog = DT.clamp((this.mapH - p.y) / (this.mapH - top), 0, 1);
+      const hz = DT.clamp((this.mapH - this.hazardY) / (this.mapH - top), 0, 1);
+      g.fillStyle(DT.C.ink, 0.8); g.fillRect(310, 24, 6, 170);
+      g.fillStyle(0xb13e53, 0.9); g.fillRect(311, 25 + 168 * (1 - hz), 4, 168 * hz);
+      g.fillStyle(0xa7f070, 1); g.fillRect(309, 24 + 168 * (1 - prog), 8, 3);
+      g.fillStyle(0xffcd75, 1); g.fillRect(309, 22, 8, 3);
+      // 골인
+      if (this.goal && p.y < this.goal.y) this.climbClear();
+    }
+
+    climbClear() {
+      if (this.cleared) return;
+      const bonus = Math.max(0, Math.ceil(this.timeLeft / 1000)) * 100;
+      this.banner('GOAL!', 0xa7f070, 3, 1400);
+      if (bonus) { this.popText(this.player.x, this.player.y - 20, 'TIME BONUS +' + bonus, 0xffcd75, 1, 1500); this.addScore(bonus); }
+      this.addScore(5000);
+      DT.Audio.sfx('perfect');
+      this.enemies.getChildren().slice().forEach(e => { if (e.state !== 'dead') this.killEnemy(e, e.x < 160 ? -1 : 1); });
+      this.stageClear();
+    }
+
     /* ───────────── 보스: 작은 적을 봉인한 구체로만 공격 가능 ───────────── */
     createBoss(def) {
       const b = this.boss = this.physics.add.sprite(250, 198, def.kind, 0);
@@ -419,6 +573,7 @@
       // HUD: 보스 이름과 체력
       this.bossName = DT.text(this, 160, 25, def.name, { font: 'ko', size: 9, color: '#ffcd75', strokeThickness: 3, depth: 42 });
       this.bossBar = this.add.graphics().setDepth(42);
+      this.ui.add([this.bossName, this.bossBar]);
       this.drawBossBar();
     }
 
@@ -475,7 +630,7 @@
       this.ring(b.x, b.y, 0xffffff, 2.2);
       this.fxStar.explode(20, b.x, b.y);
       DT.FX.play(this, 'poof', b.x, b.y + 20, { depth: 33 });
-      DT.Audio.sfx('burst');
+      DT.Audio.sfx('bosshit');
       b.body.setVelocity(((src && src.x < b.x) ? 1 : -1) * 120, -180);
       if (b.hp <= 0) this.bossDie();
       else if (b.hp === Math.floor(b.maxHp / 2)) this.banner('BOSS ANGRY!', 0xb13e53, 2.2, 1000);
@@ -587,7 +742,8 @@
       else if (e.kind === 'bird') {
         // 물결 모양으로 날며 플레이어 높이로 천천히 다가옴
         e.phase += 0.06;
-        const ty = DT.clamp(p.y - 10, 34, 196);
+        const vy0 = this.cameras.main.worldView.y;
+        const ty = DT.clamp(p.y - 10, vy0 + 34, vy0 + 196);
         e.baseY += Math.sign(ty - e.baseY) * 0.25 * (e.angry ? 1.6 : 1);
         b.setVelocityX(e.dir * spd);
         b.setVelocityY((e.baseY + Math.sin(e.phase) * 14 - e.y) * 4);
@@ -622,6 +778,7 @@
 
     hintText(str) {
       const t = DT.text(this, 160, 200, str, { font: 'ko', size: 10, color: '#ffffff', strokeThickness: 3, depth: 60 });
+      this.ui.add(t);
       this.tweens.add({ targets: t, alpha: 0, delay: 2200, duration: 400, onComplete: () => t.destroy() });
     }
 
@@ -823,7 +980,7 @@
       if (time > w.nextFrame) { w.setFrame(w.frame.name === 0 ? 1 : 0); w.nextFrame = time + 110; this.fxPx.emitParticleAt(w.x - w.dir * 10, w.y + 6, 2); }
       const age = time - w.bornAt;
       if (age > w.life - 500) w.setAlpha((w.life - age) / 500);
-      if (age > w.life || w.y > DT.H + 20) this.endWave(w);
+      if (age > w.life || w.y > this.mapH + 20) this.endWave(w);
     }
 
     waveHit(w, e) {
@@ -881,7 +1038,7 @@
       e.body.setAngularVelocity(dir * 540);
       e.setDepth(20);
       this.time.delayedCall(650, () => {
-        const fx = DT.clamp(e.x, 28, 292), fy = DT.clamp(e.y, 28, 200);
+        const fx = DT.clamp(e.x, 28, 292), fy = DT.clamp(e.y, 28, this.mapH - 40);
         this.spawnFragment(fx, fy);
         e.shell.destroy();
         e.destroy();
@@ -1040,6 +1197,7 @@
       const t2 = DT.text(this, 160, 74, v.pinyin + '  ·  ' + v.meaning, { font: 'ko', size: 9, color: '#f4f4f4', depth: 56 });
       const t3 = DT.text(this, 160, 86, reward, { font: 'ko', size: 8, color: '#ffcd75', depth: 56 });
       const all = [box, t0, t1, t2, t3];
+      this.ui.add(all);
       all.forEach(o => o.setAlpha(0));
       this.tweens.add({ targets: all, alpha: 1, duration: 150 });
       this.tweens.add({ targets: all, alpha: 0, delay: 2000, duration: 300, onComplete: () => all.forEach(o => o.destroy()) });
@@ -1049,6 +1207,12 @@
 
     /* ───────────── HUD ───────────── */
     buildHud() {
+      const n0 = this.children.list.length;
+      this.buildHudInner();
+      this.ui.add(this.children.list.slice(n0).filter(o => o !== this.ui));
+    }
+
+    buildHudInner() {
       this.add.rectangle(0, 0, DT.W, 18, DT.C.ink, 0.82).setOrigin(0).setDepth(40);
       this.add.rectangle(0, 18, DT.W, 1, DT.C.teal, 1).setOrigin(0).setDepth(40);
       DT.ptext(this, 4, 1, '1P', { tint: 0xef7d57, depth: 41 });
@@ -1095,7 +1259,8 @@
     readySequence() {
       const title = DT.ptext(this, 160, 96, 'STAGE ' + this.stage.id, { ox: 0.5, oy: 0.5, tint: 0x73eff7, scale: 2, depth: 60 });
       const name = DT.text(this, 160, 114, this.stage.name || '', { font: 'ko', size: 12, color: '#ffcd75', strokeThickness: 3, depth: 60 });
-      const ready = DT.ptext(this, 160, 134, 'READY?', { ox: 0.5, oy: 0.5, tint: 0xf4f4f4, scale: 1, depth: 60 });
+      const ready = DT.ptext(this, 160, 134, this.climb ? 'CLIMB TO THE FLAG!' : 'READY?', { ox: 0.5, oy: 0.5, tint: 0xf4f4f4, scale: 1, depth: 60 });
+      this.ui.add([title, name, ready]);
       this.time.delayedCall(1500, () => {
         title.destroy(); name.destroy(); ready.destroy();
         this.banner('GO!', 0xa7f070, 3, 400);
@@ -1103,6 +1268,7 @@
         this.enemies.getChildren().forEach(e => { if (e.state === 'spawn') { e.state = 'active'; e.setAlpha(1); } });
         this.started = true; this.fireLocked = false;
         if (this.boss) this.boss.state = 'active';
+        if (this.climb) this.hintText('아래에서 ' + this.hazardName + '이(가) 올라와요! 깃발까지 올라가요!');
         this.stageStartAt = this.time.now;
       });
     }
@@ -1164,11 +1330,12 @@
         this.physics.world.pause(); this.tweens.pauseAll(); this.anims.pauseAll(); this.time.paused = true;
         this.pauseBox = DT.panel(this, 110, 96, 100, 40, { depth: 70 });
         this.pauseText = DT.ptext(this, 160, 104, 'PAUSE', { ox: 0.5, tint: 0xffcd75, scale: 2, depth: 71 });
+        this.ui.add([this.pauseBox, this.pauseText]);
         DT.Audio.music(false);
       } else {
         this.physics.world.resume(); this.tweens.resumeAll(); this.anims.resumeAll(); this.time.paused = false;
         if (this.pauseBox) { this.pauseBox.destroy(); this.pauseText.destroy(); }
-        DT.Audio.music(true);
+        DT.Audio.music(true, this.musicSpec);
       }
     }
 
@@ -1185,22 +1352,26 @@
         if (s.mode === 'roll') s.body.setVelocityX(s.dir * s.speed);
         if (s.mode && s.mode !== 'arc' && Math.abs(s.x - s.startX) > s.range) { this.fxLeaf.explode(2, s.x, s.y); s.destroy(); return; }
         if (s.mode === 'line') s.setAlpha(1 - Math.max(0, Math.abs(s.x - s.startX) / s.range - 0.7) * 2);
-        if (time - s.bornAt > T.SEED_LIFE * (s.mode === 'roll' ? 1.6 : 1) || s.x < -10 || s.x > DT.W + 10 || s.y > DT.H + 10) s.destroy();
+        if (time - s.bornAt > T.SEED_LIFE * (s.mode === 'roll' ? 1.6 : 1) || s.x < -10 || s.x > DT.W + 10 || s.y > this.mapH + 10) s.destroy();
       });
       this.waves.getChildren().slice().forEach(w => this.updateWave(w, time));
       this.updateFrags(time);
       this.updateBoss(time);
+      if (this.climb) this.updateClimb(time, this.game.loop.delta);
+      else this.syncScreenLayer();
 
       if (this.started && !this.cleared && !this.dead) {
-        if (!this.hurry && !this.boss && time - this.stageStartAt > T.HURRY_TIME) {
+        if (!this.hurry && !this.boss && !this.climb && time - this.stageStartAt > T.HURRY_TIME) {
           this.hurry = true;
           this.banner('HURRY UP!', 0xb13e53, 2.5, 1200);
+          DT.Audio.setTempo(1.15);
           DT.Audio.sfx('hurry');
           this.enemies.getChildren().forEach(e => { if (e.state === 'active') { e.angry = true; this.applyTint(e); } });
         }
-        if (this.boss ? this.boss.state === 'dead' : this.aliveCount() === 0) this.stageClear();
+        if (this.climb) { /* 골인으로만 클리어 */ }
+        else if (this.boss ? this.boss.state === 'dead' : this.aliveCount() === 0) this.stageClear();
       }
-      if (this.dead && this.player.y > DT.H + 40) this.player.body.setVelocity(0, 0);
+      if (this.dead && this.player.y > this.mapH + 40) this.player.body.setVelocity(0, 0);
       this.updateHud(time);
     }
   }
