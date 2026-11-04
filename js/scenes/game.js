@@ -1210,10 +1210,12 @@
         else if (sh.isShock && Math.abs(sh.body.velocity.x) < 5) this.popShot(sh);
       });
       // 굴러가는 구체·퐁이 물결이 지나가면 똥이 깨끗이 쓸려 나감
-      const sweepers = this.enemies.getChildren().filter(e => e.active && (e.state === 'rolling' || e.state === 'flying')).concat(this.waves.getChildren().filter(w => w.active));
+      // (밀어서 천천히 굴러가는 봉인 구체도 포함)
+      const sweepers = this.enemies.getChildren().filter(e => e.active && (e.state === 'rolling' || e.state === 'flying' ||
+        (e.state === 'sealed' && (Math.abs(e.body.velocity.x) > 4 || e.pushedAt >= time - 50)))).concat(this.waves.getChildren().filter(w => w.active));
       this.poops.getChildren().slice().forEach(pp => {
         if (!pp.active) return;
-        if (sweepers.some(o => Math.abs(o.x - pp.x) < 16 && Math.abs(o.y - pp.y) < 16)) { this.sweepPoop(pp); return; }
+        if (sweepers.some(o => Math.abs(o.x - pp.x) < 18 && Math.abs(o.y - pp.y) < 18)) { this.sweepPoop(pp); return; }
         const age = time - pp.bornAt;
         if (age > 7500) pp.setVisible(Math.floor(time / 100) % 2 === 0);
         if (age > 9000 || (this.climb && pp.y > this.hazardY)) pp.destroy();
