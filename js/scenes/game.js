@@ -24,7 +24,8 @@
       this.stage = DT.DATA.stages[this.stageIndex];
       this.climb = this.stage.climb || null;
       // 씬 객체는 재사용되므로 스테이지별 상태를 매번 초기화
-      this.boss = null; this.goal = null; this.crumbles = null; this.movers = null; this.moverSprites = [];
+      this.boss = null; this.goal = null; this.crumbles = null; this.movers = null; this.moverSprites = []; this.spikes = null;
+      this.gates = []; this.climbQuiz = null; this.hazardMul = 1;
       this.hazard = null; this.hazardBody = null; this.riding = null; this.lastSec = undefined;
       this.lastCombo = null; this.pauseBox = null; this.flag = null; this.ambientFx = null;
       this.mapH = this.stage.map.length * DT.TILE;
@@ -137,6 +138,10 @@
             if (green && roll < 0.22) this.add.image(x + 4 + Math.floor(rng() * 6), y, 'deco_tuft').setOrigin(0, 1).setDepth(-3);
             else if (this.theme === 'forest' && roll < 0.3) this.add.image(x + 5 + Math.floor(rng() * 5), y, 'deco_shroom').setOrigin(0, 1).setDepth(-3);
             else if (roll < 0.4) this.add.image(x + 6, y, rng() < 0.5 ? 'deco_flower' : 'deco_flower2').setOrigin(0, 1).setDepth(-3);
+          } else if (ch === '^') {
+            const sp = this.physics.add.staticImage(x + 8, y + 12, 'spikes_' + (this.theme === 'jiuzhaigou' || this.theme === 'zhangjiajie' ? 'b' : 'a')).setDepth(-1);
+            sp.body.setSize(14, 6).setOffset(1, 2);
+            (this.spikes = this.spikes || []).push(sp);
           } else if (ch === '/' || ch === '\\') {
             this.slopes[r + ',' + c] = ch;
           } else if (ch === 'C') {
@@ -559,12 +564,104 @@
         this.physics.add.collider(this.enemies, this.moverSprites, null, (e) => e.state !== 'dead');
         this.physics.add.collider(this.frags, this.moverSprites);
       }
+      // 가시 장애물: 닿으면 피해 + 튕겨 오름
+      if (this.spikes) this.physics.add.overlap(this.player, this.spikes, () => {
+        if (this.dead || this.cleared || this.time.now < this.invUntil) return;
+        this.hurtPlayer({ x: this.player.x, y: this.player.y + 10 });
+        this.player.body.setVelocity(-this.facing * 90, -300);
+        this.popText(this.player.x, this.player.y - 14, '따끔!', 0xb13e53);
+      });
+      // 문제 관문: 지나가면 퀴즈 (게임 멈춤 · 가시도 멈춤). 틀리면 가시가 점점 더 빨라짐
+      (c.gates || []).forEach(r => {
+        const y = r * 16;
+        const line = this.add.graphics().setDepth(3);
+        for (let x = 16; x < 304; x += 8) { line.fillStyle(x % 16 ? 0xffcd75 : 0xef7d57, 0.9); line.fillRect(x, y, 5, 2); }
+        const tag = DT.text(this, 160, y - 7, '? 문제 관문 ?', { font: 'ko', size: 8, color: '#ffcd75', strokeThickness: 2, depth: 3 });
+        this.tweens.add({ targets: tag, alpha: 0.45, yoyo: true, repeat: -1, duration: 500 });
+        this.gates.push({ y, done: false, line, tag });
+      });
       // HUD: 남은 시간 · 높이
       this.hudTime = DT.ptext(this, 316, 10, 'TIME 00', { ox: 1, tint: 0xffcd75, depth: 41 });
       this.hudHeight = this.add.graphics().setDepth(41);
       this.ui.add([this.hudTime, this.hudHeight]);
       this.hazardName = c.hazard === 'thorn' ? '가시덩굴' : '독초';
       this.syncScreenLayer();
+    }
+
+    /* ── 진담 점프 문제 관문 퀴즈 ── */
+    climbQuestion() {
+      const D = DT.DATA;
+      const ids = Array.from(new Set([].concat(...D.stages.filter(s => s.world === this.stage.world).map(s => s.chunks))));
+      const pool = ids.map(id => D.vocabById[id]).filter(Boolean);
+      const v = pool[Math.floor(Math.random() * pool.length)];
+      const others = DT.shuffle(pool.filter(x => x.id !== v.id));
+      if (Math.random() < 0.5) {
+        return { prompt: '‘' + v.meaning + '’ 는 중국어로?', options: DT.shuffle([v.hanzi, others[0].hanzi, others[1].hanzi]), answer: v.hanzi, v };
+      }
+      return { prompt: v.hanzi + '  (' + v.pinyin + ')  의 뜻은?', options: DT.shuffle([v.meaning, others[0].meaning, others[1].meaning]), answer: v.meaning, v };
+    }
+
+    openClimbQuiz(gate) {
+      const q = this.climbQuestion();
+      this.physics.world.pause();
+      gate.line.setAlpha(0.3); gate.tag.setText('통과!');
+      DT.Audio.sfx('warn');
+      const box = DT.panel(this, 10, 150, 300, 82, { border: DT.C.yellow, fill: DT.C.ink, alpha: 0.95 });
+      const title = DT.ptext(this, 18, 156, 'QUIZ GATE', { tint: 0xffcd75 });
+      const pr = DT.text(this, 160, 172, q.prompt, { font: q.answer === q.v.hanzi ? 'ko' : 'zh', size: 12, color: '#ffffff', strokeThickness: 2 });
+      const opts = q.options.map((o, i) => {
+        const x = 62 + i * 98, y = 200;
+        const bg = this.add.rectangle(x, y, 90, 22, 0x29366f, 1).setStrokeStyle(1, 0x94b0c2);
+        const t = DT.text(this, x, y, o, { font: q.answer === q.v.hanzi ? 'zh' : 'ko', size: o.length > 5 ? 9 : 12, color: '#ffffff', stroke: null });
+        return { bg, t, value: o };
+      });
+      const bar = this.add.rectangle(18, 222, 284, 4, 0xa7f070).setOrigin(0, 0.5);
+      const hint = DT.text(this, 160, 228, '← → 고르기 · 공격(Z) 결정 · 틀리면 ' + this.hazardName + '이(가) 빨라져요', { font: 'ko', size: 7, color: '#94b0c2', stroke: null });
+      this.ui.add([box, title, pr, bar, hint].concat(...opts.map(o => [o.bg, o.t])));
+      this.climbQuiz = { q, opts, sel: 1, until: this.time.now + 9000, parts: [box, title, pr, bar, hint].concat(...opts.map(o => [o.bg, o.t])), bar };
+      opts.forEach((o, i) => o.bg.setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (this.climbQuiz) { this.climbQuiz.sel = i; this.answerClimbQuiz(); } }));
+      this.refreshClimbQuiz();
+    }
+    refreshClimbQuiz() {
+      const Q = this.climbQuiz;
+      Q.opts.forEach((o, i) => { o.bg.setFillStyle(i === Q.sel ? 0x3b5dc9 : 0x29366f, 1).setStrokeStyle(i === Q.sel ? 2 : 1, i === Q.sel ? 0xffcd75 : 0x94b0c2); });
+    }
+    updateClimbQuiz(time) {
+      const Q = this.climbQuiz, I = DT.Input;
+      const left = Q.until - time;
+      Q.bar.width = Math.max(0, 284 * left / 9000);
+      Q.bar.setFillStyle(left < 3000 ? 0xb13e53 : 0xa7f070);
+      if (I.justDown('left')) { Q.sel = (Q.sel + 2) % 3; DT.Audio.sfx('select'); this.refreshClimbQuiz(); }
+      if (I.justDown('right')) { Q.sel = (Q.sel + 1) % 3; DT.Audio.sfx('select'); this.refreshClimbQuiz(); }
+      if (I.justDown('fire') || I.justDown('confirm')) this.answerClimbQuiz();
+      else if (left <= 0) this.answerClimbQuiz(true);
+    }
+    answerClimbQuiz(timeout) {
+      const Q = this.climbQuiz;
+      if (!Q || Q.answered) return;
+      Q.answered = true;
+      const ok = !timeout && Q.opts[Q.sel].value === Q.q.answer;
+      Q.opts.forEach(o => { if (o.value === Q.q.answer) o.bg.setFillStyle(0x38b764, 1); });
+      if (ok) {
+        DT.Audio.sfx('right');
+        DT.Audio.speak(Q.q.v.hanzi);
+        this.addScore(800);
+        this.timeLeft += 5000;
+        this.hazardY = Math.min(this.mapH + 10, this.hazardY + 48);
+        this.hazardMul = Math.max(1, this.hazardMul - 0.1);
+        this.banner('정답! +5초', 0xa7f070, 1.6, 700);
+      } else {
+        if (!timeout) Q.opts[Q.sel].bg.setFillStyle(0xb13e53, 1);
+        DT.Audio.sfx('wrong');
+        this.hazardMul += 0.35;
+        this.banner(timeout ? '시간 초과!' : '아쉬워요!', 0xb13e53, 1.6, 700);
+        this.hintText(this.hazardName + '이(가) 더 빨라졌어요! 정답: ' + Q.q.answer);
+      }
+      this.time.delayedCall(ok ? 900 : 1500, () => {
+        Q.parts.forEach(o => o.destroy());
+        this.climbQuiz = null;
+        if (!this.isPaused) this.physics.world.resume();
+      });
     }
 
     startCrumble(t) {
@@ -601,6 +698,10 @@
       this.riding = null;
       if (!this.started || this.cleared || this.dead) return;
       // 제한 시간
+      // 문제 관문 통과 → 퀴즈
+      for (const gt of this.gates) {
+        if (!gt.done && p.y < gt.y) { gt.done = true; this.openClimbQuiz(gt); return; }
+      }
       this.timeLeft -= delta;
       const sec = Math.max(0, Math.ceil(this.timeLeft / 1000));
       if (sec !== this.lastSec) {
@@ -611,7 +712,7 @@
       }
       // 올라오는 위험 지대: 점점 빨라지고, 너무 뒤처지면 화면 아래까지 따라옴
       const elapsed = (time - this.stageStartAt) / 1000;
-      let speed = elapsed < 2.5 ? 0 : c.speed + elapsed * 0.18;
+      let speed = elapsed < 2.5 ? 0 : (c.speed + elapsed * (c.accel || 0.18)) * this.hazardMul;
       if (this.timeLeft <= 0) speed *= 4;
       this.hazardY -= speed * delta / 1000;
       const viewBottom = this.cameras.main.worldView.bottom;
@@ -1625,7 +1726,7 @@
         this.enemies.getChildren().forEach(e => { if (e.state === 'spawn') { e.state = 'active'; e.setAlpha(1); } });
         this.started = true; this.fireLocked = false;
         if (this.boss) this.boss.state = 'active';
-        if (this.climb) this.hintText('아래에서 ' + this.hazardName + '이(가) 올라와요! 깃발까지 올라가요!');
+        if (this.climb) this.hintText(this.hazardName + '이(가) 올라와요! 문제 관문에서 틀리면 더 빨라져요!');
         this.stageStartAt = this.time.now;
       });
     }
@@ -1671,7 +1772,7 @@
       DT.saveHi(run.score);
       if (this.stageIndex + 1 < DT.DATA.stages.length) {
         run.stage = this.stageIndex + 1;
-        return { key: 'Upgrade', data: { run, picks: firstTry ? 2 : 1 } };
+        return { key: 'Upgrade', data: { run, picks: 1, extra: !!firstTry } };   // 한 번에 정답 → 카드 4장 중 1장
       }
       return { key: 'Ending', data: { run } };
     }
@@ -1701,6 +1802,7 @@
       if (DT.Input.justDown('pause') && this.started && !this.cleared && !this.dead) this.togglePause();
       if (this.isPaused) return;
       time = this.time.now;
+      if (this.climbQuiz) { if (!this.climbQuiz.answered) this.updateClimbQuiz(time); this.syncScreenLayer(); return; }
 
       this.applySlopes();
       this.updatePlayer(time);

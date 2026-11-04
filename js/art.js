@@ -545,6 +545,12 @@
         [[4, 3], [13, 1], [20, 4], [27, 2]].forEach(b => { disc(ctx, b[0], b[1] + 8, 2, '#c46ad8'); px(ctx, b[0] - 1, b[1] + 7, '#f0c0ff'); });
         for (let i = 0; i < 8; i++) { const x = Math.floor(rng() * 30), y = 14 + Math.floor(rng() * 24); disc(ctx, x, y, 1, '#c46ad8'); }
       });
+      // 가시 장애물 (16x16 칸 아래쪽에 놓임)
+      ['a', 'b'].forEach(v => addSingle(scene, 'spikes_' + v, 16, 8, (ctx) => {
+        const body = v === 'a' ? '#94b0c2' : '#c46ad8', hi = v === 'a' ? '#f4f4f4' : '#f0c0ff';
+        for (let k = 0; k < 4; k++) { const x0 = k * 4; for (let y = 0; y < 7; y++) { const w = Math.floor((y + 1) / 2); rect(ctx, x0 + 2 - w, y + 1, w * 2, 1, body); } px(ctx, x0 + 1, 2, hi); }
+        rect(ctx, 0, 7, 16, 1, '#1a1c2c');
+      }));
       addSingle(scene, 'goalflag', 18, 30, (ctx) => {
         rect(ctx, 1, 0, 2, 30, '#1a1c2c'); rect(ctx, 1, 0, 1, 30, '#94b0c2');
         rect(ctx, 3, 1, 14, 10, '#1a1c2c'); rect(ctx, 3, 2, 13, 8, '#f4566a'); rect(ctx, 3, 2, 13, 2, '#ff8c9a');

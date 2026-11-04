@@ -266,10 +266,12 @@
   }
 
   /* ───────── 재생기 ───────── */
-  let song = null, timer = null, stepIdx = 0, nextT = 0, tempoMul = 1, byStep = null;
+  let song = null, timer = null, stepIdx = 0, nextT = 0, tempoMul = 1, byStep = null, pendingSpec = null;
   function schedule() {
     if (!ctx || !song) return;
+    if (ctx.state !== 'running') return;
     const stepDur = 60 / (song.bpm * tempoMul) / 4;
+    if (nextT < ctx.currentTime - 0.2) nextT = ctx.currentTime + 0.05;   // 멈춰 있다가 다시 시작될 때 밀린 음을 한꺼번에 내지 않음
     while (nextT < ctx.currentTime + 0.15) {
       const list = byStep[stepIdx % song.steps];
       if (list && !muted && bgmVol > 0) list.forEach(([, inst, n, len, v, open]) => {
@@ -316,11 +318,14 @@
     sfx(name, arg) { try { if (ensure() && SFX[name]) SFX[name](arg); } catch (e) { /* 소리 실패는 무시 */ } },
     music(on, spec) {
       if (timer) { clearInterval(timer); timer = null; }
-      song = null;
-      if (!on || !ensure()) return;
+      song = null; pendingSpec = null;
+      if (!on) return;
+      // 브라우저가 아직 소리를 허용하지 않았으면(첫 클릭·키 입력 전) 기다렸다가 시작
+      if (!ctx || ctx.state !== 'running') { pendingSpec = spec === undefined ? 'w1' : spec; ensure(); if (!ctx || ctx.state !== 'running') return; pendingSpec = null; }
       try { startSong(songFor(spec === undefined ? 'w1' : spec)); } catch (e) { console.warn('[audio]', e); }
     },
     setTempo(mul) { tempoMul = mul || 1; },
+    get playing() { return !!(song && timer); },
     get muted() { return muted; },
     toggleMute() {
       muted = !muted;
@@ -347,7 +352,12 @@
     }
   };
 
-  ['keydown', 'pointerdown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => ensure(), { passive: true }));
+  function unlockAndPlay() {
+    if (!ensure()) return;
+    const go = () => { if (pendingSpec !== null && ctx.state === 'running') { const sp = pendingSpec; pendingSpec = null; DT.Audio.music(true, sp); } };
+    if (ctx.state === 'running') go(); else ctx.resume().then(go).catch(() => {});
+  }
+  ['keydown', 'pointerdown', 'touchstart', 'click'].forEach(ev => window.addEventListener(ev, unlockAndPlay, { passive: true }));
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) ctx.suspend().catch(() => {}); else ctx.resume().catch(() => {});

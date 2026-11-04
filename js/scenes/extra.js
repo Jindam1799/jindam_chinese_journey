@@ -310,7 +310,7 @@
         L(DT.text(this, 118, 84, def.name, { font: 'ko', size: 14, color: '#ffcd75', strokeThickness: 3, ox: 0 }));
         L(DT.text(this, 118, 108, info[0], { font: 'ko', size: 9, color: '#ffffff', stroke: null, ox: 0, oy: 0, wrap: 180, align: 'left' }).setOrigin(0, 0));
         L(DT.text(this, 118, 150, '나오는 곳: ' + info[1], { font: 'ko', size: 8, color: '#73eff7', stroke: null, ox: 0 }));
-        L(DT.text(this, 118, 164, '봉인까지: 씨앗탄 ' + def.hp + '번', { font: 'ko', size: 8, color: '#a7f070', stroke: null, ox: 0 }));
+        L(DT.text(this, 118, 164, '봉인까지: ' + def.hp + '번 맞히기', { font: 'ko', size: 8, color: '#a7f070', stroke: null, ox: 0 }));
         for (let i = 0; i < def.hp; i++) L(this.add.image(206 + i * 9, 164, 'heart').setOrigin(0, 0.5));
       } else {
         const b = e.b;

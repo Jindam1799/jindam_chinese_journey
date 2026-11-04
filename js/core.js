@@ -3,7 +3,7 @@
   'use strict';
   const DT = (window.DT = window.DT || {});
 
-  DT.VERSION = '0.6.0';
+  DT.VERSION = '0.6.1';
   DT.W = 320;   // 논리 해상도 (16px 타일 20 x 15)
   DT.H = 240;
   DT.TILE = 16;
@@ -95,6 +95,31 @@
     { id: 'heal',   name: '꿀물 한 잔',  desc: '체력을 모두 회복',      max: 99, icon: 'heart', apply: (s, run) => { run.hp = s.maxHp; },
       when: (run) => run.hp < run.stats.maxHp }
   ];
+
+  // 주인공마다 다른 파워업 카드 이름·설명 (없으면 기본값)
+  const HERO_UPG = {
+    tuk: {
+      orb: ['씽씽 구체', '구르는 새싹 구체가 더 빠르고 더 많이 튕겨요']
+    },
+    pong: {
+      power: ['물방울 파워', '물방울탄 공격력 +1'], range: ['물줄기 늘리기', '물방울탄 사거리 +20%'],
+      rapid: ['연속 물방울', '물방울탄 발사 속도 +20%'], speed: ['물살 달리기', '이동 속도 +12%'],
+      jump: ['퐁퐁 점프', '점프력 +8%'], seal: ['물거품 봉인', '봉인 유지 시간 +2초'],
+      heart: ['맑은 마음', '최대 체력 +1, 모두 회복'], orb: ['큰 물결', '물결이 더 빠르고 더 오래 흘러요'],
+      magnet: ['소용돌이 자석', '가까운 조각을 끌어당겨요'], heal: ['시원한 샘물', '체력을 모두 회복']
+    },
+    doto: {
+      power: ['도토리 파워', '도토리탄 공격력 +1'], range: ['멀리 굴리기', '도토리탄 사거리 +20%'],
+      rapid: ['빠른 굴리기', '도토리탄 발사 속도 +20%'], speed: ['데굴 달리기', '이동 속도 +12%'],
+      jump: ['도토리 점프', '점프력 +8%'], seal: ['껍데기 봉인', '봉인 유지 시간 +2초'],
+      heart: ['단단한 마음', '최대 체력 +1, 모두 회복'], orb: ['대폭발', '도토리 구체의 폭발 범위가 넓어져요'],
+      magnet: ['도토리 자석', '가까운 조각을 끌어당겨요'], heal: ['도토리묵 한 접시', '체력을 모두 회복']
+    }
+  };
+  DT.upgradeText = function (u, hero) {
+    const t = (HERO_UPG[hero] || {})[u.id];
+    return t ? { name: t[0], desc: t[1] } : { name: u.name, desc: u.desc };
+  };
 
   DT.newRun = function (heroId) {
     const hero = DT.HEROES.find(h => h.id === heroId) || DT.HEROES[0];

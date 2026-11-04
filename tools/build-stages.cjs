@@ -160,7 +160,7 @@ function makeClimbMap(rows, R, mix, count) {
   platRows.forEach((r, i) => {
     let row = E;
     const roll = R();
-    if (i > 1 && roll < 0.16) {
+    if (i > 1 && roll < 0.2) {
       const c = 2 + Math.floor(R() * 14);
       row = set(row, c, 'M');
       // 움직이는 발판 줄에는 양 끝에 작은 쉼터를 둠
@@ -171,11 +171,31 @@ function makeClimbMap(rows, R, mix, count) {
       zones.forEach(([a, b]) => {
         const w = 3 + Math.floor(R() * Math.min(4, b - a - 1));
         const st = a + Math.floor(R() * Math.max(1, b - a - w + 1));
-        const crumble = i > 0 && R() < 0.22;
+        const crumble = i > 0 && R() < 0.3;
         for (let c = st; c < Math.min(19, st + w); c++) row = set(row, c, crumble ? 'C' : '=');
       });
     }
     m[r] = row;
+  });
+  // 경사로: 발판 끝에서 위 줄 발판으로 이어지는 오르막 (가끔)
+  platRows.forEach((r, i) => {
+    if (i < 2 || R() > 0.25 || r - 3 < 5) return;
+    for (let c = 2; c < 16; c++) {
+      if (m[r][c] === '=' && m[r][c + 1] === '.' && m[r - 3][c + 4] === '=' &&
+          [[r - 1, c + 1], [r - 2, c + 2], [r - 3, c + 3]].every(([rr, cc]) => m[rr][cc] === '.')) {
+        m[r - 1] = set(m[r - 1], c + 1, '/'); m[r - 2] = set(m[r - 2], c + 2, '/'); m[r - 3] = set(m[r - 3], c + 3, '/');
+        break;
+      }
+    }
+  });
+  // 가시 장애물(^): 일부 발판 위에 2칸짜리 가시 (닿으면 아야)
+  platRows.forEach((r, i) => {
+    if (i < 1 || R() > 0.3) return;
+    const cs = [];
+    for (let c = 1; c < 18; c++) if (m[r][c] === '=' && m[r][c + 1] === '=' && m[r - 1][c] === '.' && m[r - 1][c + 1] === '.') cs.push(c);
+    if (cs.length < 3) return;
+    const c = cs[Math.floor(R() * cs.length)];
+    m[r - 1] = set(set(m[r - 1], c, '^'), c + 1, '^');
   });
   // 몬스터: 단단한 발판(=) 위에만
   const spots = [];
@@ -268,10 +288,13 @@ WORLDS.forEach((w, wi) => {
     if (n === 3) {
       // x-4 다음: 진담 점프 등반 미션
       const CR = rng(wi * 999 + 17);
-      const rows = 52 + wi * 6;
+      const rows = 64 + wi * 8;
       stages.push({ id: `${wi + 1}-J`, name: `${w.place} · 진담 점프!`, theme: w.theme, chunks: [0, 1, 2].map(k => pool[(k * 4 + wi) % pool.length]),
-        map: makeClimbMap(rows, CR, w.mix, 8 + wi * 2), world: wi + 1,
-        climb: { time: 75 - wi * 5, hazard: wi % 2 === 0 ? 'thorn' : 'poison', speed: 9 + wi * 1.5 }, story: STORY[wi].J });
+        map: makeClimbMap(rows, CR, w.mix, 14 + wi * 3), world: wi + 1,
+        // 문제 관문: 12줄마다 (지나가면 퀴즈, 틀리면 가시가 더 빨라짐)
+        climb: { time: 80 - wi * 5, hazard: wi % 2 === 0 ? 'thorn' : 'poison', speed: 12 + wi * 2, accel: 0.25 + wi * 0.04,
+          gates: Array.from({ length: Math.floor((rows - 16) / 12) }, (_, k) => rows - 10 - k * 12).filter(r => r > 6) },
+        story: STORY[wi].J });
     }
   }
 });

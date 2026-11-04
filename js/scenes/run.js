@@ -90,7 +90,7 @@
 
   class UpgradeScene extends Phaser.Scene {
     constructor() { super('Upgrade'); }
-    init(d) { this.run = d.run; this.picks = d.picks || 1; }
+    init(d) { this.run = d.run; this.picks = d.picks || 1; this.extra = !!d.extra; }
     create() {
       DT.setupCamera(this);
       const next = DT.DATA.stages[this.run.stage];
@@ -110,25 +110,27 @@
     deal() {
       this.cardObjs.forEach(o => o.c.destroy());
       this.cardObjs = [];
-      this.options = DT.rollUpgrades(this.run, 3);
+      this.options = DT.rollUpgrades(this.run, this.extra ? 4 : 3);
       if (!this.options.length) { this.finish(); return; }
       this.sel = 0; this.busy = false;
-      this.sub.setText(this.picks > 1 ? '퀴즈 한 번에 정답! 카드를 ' + this.picks + '장 고를 수 있어요' : '카드를 1장 골라 주세요');
-      const n = this.options.length, w = 92, gap = 8, x0 = 160 - (n * w + (n - 1) * gap) / 2;
+      this.sub.setText(this.extra ? '퀴즈 한 번에 정답! 카드 4장 중에서 1장을 골라요' : '카드를 1장 골라 주세요');
+      const n = this.options.length, sc = n >= 4 ? 0.76 : 1, w = 92 * sc, gap = n >= 4 ? 5 : 8, x0 = 160 - (n * w + (n - 1) * gap) / 2;
+      this.cardScale = sc;
       this.options.forEach((u, i) => {
         const x = x0 + i * (w + gap), y = 56;
-        const c = this.add.container(x, y + 30).setAlpha(0);
+        const c = this.add.container(x, y + 30).setAlpha(0).setScale(sc);
         const g = this.add.graphics();
         const iconKey = ICON[u.icon] === undefined || ICON[u.icon] === null ? 'seed_' + this.run.hero : ICON[u.icon];
         const icon = this.add.image(46, 34, iconKey, iconKey === 'spark' ? 1 : 0).setScale(iconKey === 'orb' || iconKey === 'ring' ? 1.4 : 3);
         if (u.icon === 'seed2') icon.setX(38);
         const lv = this.run.levels[u.id] || 0;
-        const name = DT.text(this, 46, 72, u.name, { font: 'ko', size: 12, color: '#ffcd75', strokeThickness: 3 });
-        const desc = DT.text(this, 46, 96, u.desc, { font: 'ko', size: 8, color: '#ffffff', stroke: null, wrap: 80 });
+        const ut = DT.upgradeText(u, this.run.hero);
+        const name = DT.text(this, 46, 72, ut.name, { font: 'ko', size: ut.name.length > 6 ? 10 : 12, color: '#ffcd75', strokeThickness: 3 });
+        const desc = DT.text(this, 46, 96, ut.desc, { font: 'ko', size: 8, color: '#ffffff', stroke: null, wrap: 80 });
         const lvText = DT.ptext(this, 46, 122, u.max >= 99 ? '' : 'LV ' + lv + '>' + (lv + 1), { ox: 0.5, tint: 0x73eff7 });
         c.add([g, icon, name, desc, lvText]);
         if (u.icon === 'seed2') c.add(this.add.image(55, 30, iconKey).setScale(3));
-        const zone = this.add.zone(x + 46, y + 68, w, 136).setInteractive({ useHandCursor: true });
+        const zone = this.add.zone(x + 46 * sc, y + 68 * sc, w, 136 * sc).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.busy) return; if (this.sel === i) this.pick(); else { this.sel = i; this.refresh(); DT.Audio.sfx('select'); } });
         this.tweens.add({ targets: c, y, alpha: 1, delay: i * 90, duration: 260, ease: 'Back.easeOut' });
         this.cardObjs.push({ c, g, x, y, zone });
@@ -149,7 +151,7 @@
         g.fillStyle(on ? 0xffcd75 : 0x94b0c2, 1); g.fillRect(2, 1, 88, 134); g.fillRect(1, 2, 90, 132);
         g.fillStyle(on ? 0x3b5dc9 : 0x29366f, 1); g.fillRect(3, 3, 86, 130);
         g.fillStyle(0xffffff, on ? 0.2 : 0.1); g.fillRect(3, 3, 86, 46);
-        k.c.setScale(on ? 1.04 : 1);
+        k.c.setScale((on ? 1.04 : 1) * (this.cardScale || 1));
       });
     }
     pick() {
@@ -161,7 +163,7 @@
       this.cameras.main.flash(120, 255, 240, 180);
       const fx = this.add.particles(0, 0, 'star', { speed: { min: 60, max: 180 }, lifespan: 700, gravityY: 200, scale: { start: 1, end: 0 }, emitting: false,
         tint: [0xffcd75, 0xa7f070, 0x73eff7] });
-      fx.explode(20, k.x + 46, k.y + 50);
+      fx.explode(20, k.x + 46 * (this.cardScale || 1), k.y + 50);
       this.tweens.add({ targets: k.c, y: k.y - 10, duration: 200, yoyo: true });
       this.updateStats();
       this.picks--;

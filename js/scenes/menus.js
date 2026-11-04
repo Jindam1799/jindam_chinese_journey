@@ -33,23 +33,19 @@
       this.tweens.add({ targets: [logo, shadow], y: '-=3', yoyo: true, repeat: -1, duration: 900, ease: 'Sine.easeInOut' });
       DT.text(this, 160, 88, '사라진 말의 조각', { font: 'ko', size: 14, color: '#ffcd75', strokeThickness: 3 });
 
-      // 캐릭터
-      DT.HEROES.forEach((h, i) => {
-        const hs = this.add.sprite(118 + i * 30, 150, 'hero_' + h.id, 0).setScale(2);
-        hs.play(h.id + '_idle');
-        this.tweens.add({ targets: hs, y: 144, yoyo: true, repeat: -1, duration: 500, delay: i * 160, ease: 'Sine.easeInOut' });
+      // 말의 나무: 로고 아래에 조용히 서서 반짝이는 열매를 떨어뜨림
+      const tree = this.add.image(160, 225, 'tree').setOrigin(0.5, 1).setScale(0.72).setAlpha(0.95);
+      this.tweens.add({ targets: tree, scaleX: 0.73, yoyo: true, repeat: -1, duration: 2400, ease: 'Sine.easeInOut' });
+      this.add.particles(0, 0, 'glow', {
+        x: { min: 115, max: 205 }, y: { min: 120, max: 160 }, lifespan: 2600, frequency: 260,
+        speedY: { min: 6, max: 18 }, speedX: { min: -6, max: 6 }, alpha: { start: 1, end: 0 }, scale: { start: 1, end: 0.4 }
       });
-      const orb = this.add.image(206, 152, 'orb').setScale(1.5);
-      const inner = this.add.sprite(206, 152, 'mush', 2).setScale(1.2);
-      inner.play('mush_struggle');
-      this.tweens.add({ targets: [orb, inner], angle: { from: -8, to: 8 }, yoyo: true, repeat: -1, duration: 260 });
-      orb.setDepth(1);
       [['mush', 40], ['frog', 84], ['snail', 236], ['bird', 270]].forEach((m, i) => {
         const s = this.add.sprite(m[1], 216, m[0], 0).play(m[0] + '_walk');
         this.tweens.add({ targets: s, x: m[1] + 26, yoyo: true, repeat: -1, duration: 1800 + i * 300, onYoyo: () => s.setFlipX(true), onRepeat: () => s.setFlipX(false) });
       });
 
-      // 메뉴: 게임 시작 · 스토리 · 명예의 전당 · 설정
+      // 메뉴: 게임 시작 · 도감 · 명예의 전당 · 설정
       this.menu = [['게임 시작', 'start'], ['도감', 'dex'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
         const x = 52 + i * 72;
         const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 });
