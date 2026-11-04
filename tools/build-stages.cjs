@@ -65,12 +65,67 @@ function rng(seed) {
 const E = '#..................#';
 const set = (row, c, ch) => row.slice(0, c) + ch + row.slice(c + 1);
 
-function makeMap(layout, enemies, R) {
+/* ── 다양한 지형: 계단(#) · 경사로(/ \\, 내려갈 때 미끄러짐) · 점프 구간(작은 발판) ── */
+const empty = (m, r, c) => r >= 1 && r <= 13 && c >= 1 && c <= 18 && m[r][c] === '.';
+function addStairs(m, R) {
+  // 바닥에서 시작하는 3단 계단 (블록 2칸 너비씩 한 칸씩 올라감)
+  const left = R() < 0.5;
+  const c0 = left ? 1 + Math.floor(R() * 2) : 12 + Math.floor(R() * 2);
+  for (let k = 0; k < 3; k++) {
+    const cs = left ? [c0 + k * 2, c0 + k * 2 + 1] : [c0 + 5 - k * 2, c0 + 4 - k * 2];
+    cs.forEach(c => { for (let r = 13 - k; r <= 13; r++) if (c >= 1 && c <= 18 && m[r][c] !== 'P') m[r] = set(m[r], c, '#'); });
+  }
+}
+function addRamp(m, R, lowRow) {
+  // lowRow 위(바닥 13행 또는 발판 10행)에서 3칸 위 발판(11행 또는 8행)으로 이어지는 45도 경사로
+  const topRow = lowRow - 2, platRow = topRow;
+  const row = m[platRow];
+  const segs = [];
+  for (let c = 1; c < 19; c++) {
+    if (row[c] === '=' && row[c - 1] !== '=') segs.push(['start', c]);
+    if (row[c] === '=' && row[c + 1] !== '=') segs.push(['end', c]);
+  }
+  for (const [kind, c] of DTshuffle(segs, R)) {
+    const cells = kind === 'start' ? [[lowRow, c - 3, '/'], [lowRow - 1, c - 2, '/'], [lowRow - 2, c - 1, '/']]
+                                   : [[lowRow - 2, c + 1, '\\'], [lowRow - 1, c + 2, '\\'], [lowRow, c + 3, '\\']];
+    if (cells.every(([r, cc]) => empty(m, r, cc) && (r !== 13 || Math.abs(cc - 10) > 1))) {
+      cells.forEach(([r, cc, ch]) => { m[r] = set(m[r], cc, ch); });
+      return true;
+    }
+  }
+  return false;
+}
+function addHops(m, R) {
+  // 한 발판 줄을 지우고 높이가 다른 작은 발판들로 바꿈 (점프를 많이 해야 하는 구간)
+  const r = R() < 0.5 ? 8 : 5;
+  m[r] = '#' + m[r].slice(1, 19).replace(/=/g, '.') + '#';
+  let c = 2 + Math.floor(R() * 2);
+  let up = R() < 0.5;
+  while (c < 18) {
+    const rr = up ? r - 1 : r + 1;
+    const w = R() < 0.6 ? 1 : 2;
+    for (let k = 0; k < w && c + k < 19; k++) if (m[rr][c + k] === '.') m[rr] = set(m[rr], c + k, '=');
+    c += w + 2 + Math.floor(R() * 2);
+    up = !up;
+  }
+}
+function DTshuffle(a, R) { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
+
+function makeMap(layout, enemies, R, features) {
   const m = ['....................', E, E, E, E, layout[0], E, E, layout[1], E, E, layout[2], E, '#.........P........#', '####################'];
+  const ORDER = { stairs: 0, hops: 1, ramp: 2, ramp2: 3 };
+  (features || []).slice().sort((a, b) => ORDER[a] - ORDER[b]).forEach(f => {
+    if (f === 'stairs') addStairs(m, R);
+    else if (f === 'ramp') addRamp(m, R, 13);
+    else if (f === 'ramp2') addRamp(m, R, 10);
+    else if (f === 'hops') addHops(m, R);
+  });
   // 놓을 수 있는 칸: 발판(5·8·11행) 바로 위, 바닥(13행)은 시작 위치에서 먼 곳
   const spots = [];
-  [5, 8, 11].forEach(r => { for (let c = 1; c < 19; c++) if (m[r][c] === '=') spots.push([r - 1, c]); });
-  for (let c = 1; c < 19; c++) if (Math.abs(c - 10) >= 6) spots.push([13, c]);
+  for (let r = 3; r <= 13; r++) for (let c = 1; c < 19; c++) {
+    if ((m[r][c] === '=' || (m[r][c] === '#' && r < 13)) && m[r - 1][c] === '.') spots.push([r - 1, c]);
+  }
+  for (let c = 1; c < 19; c++) if (Math.abs(c - 10) >= 6 && m[13][c] === '.') spots.push([13, c]);
   const air = [];
   [2, 6, 9].forEach(r => { for (let c = 2; c < 18; c++) air.push([r, c]); });
   const used = new Set();
@@ -205,7 +260,11 @@ WORLDS.forEach((w, wi) => {
     const enemies = [];
     for (let i = 0; i < count; i++) enemies.push(w.mix[Math.floor(R() * w.mix.length)]);
     const layout = LAYOUTS[(wi * 3 + n) % LAYOUTS.length];
-    stages.push({ id, name: `${w.place} · ${w.names[n]}`, theme: w.theme, chunks, map: makeMap(layout, enemies, R), world: wi + 1, story: STORY[wi][n] });
+    // 지형 다양화: 뒤로 갈수록 기능이 늘어남 (1-1·1-2는 평평한 연습 스테이지)
+    const level = wi * 7 + n;
+    const POOL = [['stairs'], ['ramp'], ['hops'], ['ramp', 'stairs'], ['ramp2', 'hops'], ['ramp', 'ramp2'], ['stairs', 'hops', 'ramp']];
+    const features = level < 2 ? [] : POOL[(level - 2) % POOL.length].concat(level > 14 ? ['ramp'] : []).concat(level > 21 ? ['hops'] : []);
+    stages.push({ id, name: `${w.place} · ${w.names[n]}`, theme: w.theme, chunks, map: makeMap(layout, enemies, R, features), world: wi + 1, story: STORY[wi][n], terrain: features });
     if (n === 3) {
       // x-4 다음: 진담 점프 등반 미션
       const CR = rng(wi * 999 + 17);

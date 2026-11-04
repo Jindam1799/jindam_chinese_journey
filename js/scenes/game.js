@@ -117,6 +117,7 @@
       const map = this.stage.map, S = DT.TILE;
       const at = (r, c) => (map[r] && map[r][c]) || '.';
       const rng = DT.rng(this.stageIndex * 97 + 13);
+      this.slopes = {};
       for (let r = 0; r < map.length; r++) {
         for (let c = 0; c < map[r].length; c++) {
           const ch = map[r][c];
@@ -136,6 +137,8 @@
             if (green && roll < 0.22) this.add.image(x + 4 + Math.floor(rng() * 6), y, 'deco_tuft').setOrigin(0, 1).setDepth(-3);
             else if (this.theme === 'forest' && roll < 0.3) this.add.image(x + 5 + Math.floor(rng() * 5), y, 'deco_shroom').setOrigin(0, 1).setDepth(-3);
             else if (roll < 0.4) this.add.image(x + 6, y, rng() < 0.5 ? 'deco_flower' : 'deco_flower2').setOrigin(0, 1).setDepth(-3);
+          } else if (ch === '/' || ch === '\\') {
+            this.slopes[r + ',' + c] = ch;
           } else if (ch === 'C') {
             const t = this.physics.add.staticImage(x + 8, y + 4, 'crumble_' + this.theme).setDepth(-2);
             t.body.setSize(16, 8); t.body.checkCollision.down = t.body.checkCollision.left = t.body.checkCollision.right = false;
@@ -151,6 +154,7 @@
           }
         }
       }
+      this.drawSlopes();
       // 물리 바디: 벽은 직사각형으로 병합, 발판은 위에서만 밟히는 일방향
       const runs = [];
       for (let r = 0; r < map.length; r++) {
@@ -174,6 +178,61 @@
       });
       merged.forEach(m => this.addBody(m.c0 * S, m.r * S, (m.c1 - m.c0 + 1) * S, m.h * S, false));
       runs.filter(u => u.ch === '=').forEach(u => this.addBody(u.c0 * S, u.r * S, (u.c1 - u.c0 + 1) * S, 8, true));
+    }
+
+    /* ── 경사로(45도): 오르막·내리막. 위에서만 밟히고, 내려갈 땐 미끄러짐 ── */
+    drawSlopes() {
+      const keys = Object.keys(this.slopes);
+      if (!keys.length) return;
+      const key = 'slopes_' + this.stageIndex;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const tex = this.textures.createCanvas(key, DT.W, this.mapH), ctx = tex.getContext();
+      const T2 = DT.THEMES[this.theme], [body, spk, hi] = T2.plat, [t0, t1, t2] = T2.top;
+      const px = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); };
+      keys.forEach(k => {
+        const [r, c] = k.split(',').map(Number), ch = this.slopes[k];
+        for (let lx = 0; lx < 16; lx++) {
+          const x = c * 16 + lx, sY = this.slopeSurfaceY(ch, r, lx);
+          px(x, sY, t0); px(x, sY + 1, t1); px(x, sY + 2, t1); px(x, sY + 3, (x % 3) ? t1 : t2);
+          for (let y = 4; y < 8; y++) px(x, sY + y, ((x + y) % 5 === 0) ? spk : ((x * 7 + y) % 11 === 0 ? hi : body));
+          px(x, sY + 8, '#1a1c2c');
+        }
+      });
+      tex.refresh();
+      this.add.image(0, 0, key).setOrigin(0).setDepth(-2);
+    }
+    slopeSurfaceY(ch, r, lx) { return ch === '/' ? r * 16 + 15 - lx : r * 16 + lx; }
+    // (x, 발밑 y)에서 경사로 표면 찾기
+    slopeAt(x, yb) {
+      const c = Math.floor(x / 16), lx = Math.floor(x) - c * 16;
+      const r0 = Math.floor(yb / 16);
+      for (let r = r0 - 1; r <= r0 + 1; r++) {
+        const ch = this.slopes[r + ',' + c];
+        if (!ch) continue;
+        const sY = this.slopeSurfaceY(ch, r, lx);
+        if (yb >= sY - 5 && yb <= sY + 9) return { s: sY, down: ch === '/' ? -1 : 1 };
+      }
+      return null;
+    }
+    // 몸이 경사로 위에 있으면 표면에 붙임 (아래에서 위로 뛰어오를 때는 통과)
+    stickToSlope(body) {
+      if (!body || !body.enable || body.velocity.y < -1) return null;
+      const hit = this.slopeAt(body.center.x, body.bottom);
+      if (!hit) return null;
+      body.y = hit.s - body.height;
+      if (body.velocity.y > 0) body.velocity.y = 0;
+      return hit;
+    }
+    applySlopes() {
+      if (!this.slopes || !Object.keys(this.slopes).length) { this.onSlope = null; return; }
+      const p = this.player;
+      this.onSlope = (!this.dead && this.time.now >= this.dropUntil) ? this.stickToSlope(p.body) : null;
+      this.enemies.getChildren().forEach(e => {
+        if (!e.active || e.state === 'dead' || (e.flyer && e.state === 'active')) { e.onSlope = null; return; }
+        e.onSlope = this.stickToSlope(e.body);
+      });
+      [this.frags, this.poops, this.waves].forEach(g => g.getChildren().forEach(o => { if (o.active) o.onSlope = this.stickToSlope(o.body); }));
+      this.seeds.getChildren().forEach(sd => { if (sd.active && sd.mode === 'roll') this.stickToSlope(sd.body); });
     }
 
     addBody(x, y, w, h, oneWay) {
@@ -277,7 +336,7 @@
     updatePlayer(time) {
       const p = this.player, b = p.body, I = DT.Input;
       if (this.dead) { p.angle += 12; return; }
-      const onGround = b.blocked.down || b.touching.down;
+      const onGround = b.blocked.down || b.touching.down || !!this.onSlope;
       if (onGround) this.lastGroundAt = time;
       const locked = this.controlLocked;
       const knock = time < this.knockUntil;
@@ -288,6 +347,15 @@
       if (!knock) {
         const nv = Phaser.Math.Linear(b.velocity.x, target * this.S.move, onGround ? T.PLAYER_ACCEL : T.PLAYER_AIR_ACCEL);
         b.setVelocityX(target === 0 && Math.abs(nv) < 3 ? 0 : nv);
+        // 경사로: 가만히 있어도 아래로 미끄러지고, 내리막으로 달리면 더 빨라짐 · 오르막은 느림
+        if (this.onSlope) {
+          const d = this.onSlope.down, dt = this.game.loop.delta / 1000;
+          if (target === 0) b.setVelocityX(DT.clamp(this.slideVx = (this.slideVx || 0) + d * 300 * dt, -170, 170));
+          else if (target === d) b.setVelocityX(target * this.S.move * 1.7);
+          else b.setVelocityX(target * this.S.move * 0.7);
+          if (Math.abs(b.velocity.x) > 80 && time > (this.slideDustAt || 0)) { this.slideDustAt = time + 70; this.fxDust.explode(2, p.x - d * 4, p.y + 8); }
+        } else this.slideVx = 0;
+        if (this.onSlope && target === 0) this.slideVx = b.velocity.x;
       }
 
       // 점프 (코요테 타임 + 입력 버퍼 + 가변 높이)
@@ -369,6 +437,7 @@
 
     // 발밑이 일방향 발판(=·무너지는·움직이는)인지
     onOneWay() {
+      if (this.onSlope) return true;
       const p = this.player, y = p.body.bottom + 1;
       const hits = this.physics.overlapRect(p.body.x + 1, y, p.body.width - 2, 3, true, true);
       if (!hits.length) return false;
@@ -831,7 +900,7 @@
     }
 
     enemyAI(e, time) {
-      const b = e.body, onGround = b.blocked.down || b.touching.down;
+      const b = e.body, onGround = b.blocked.down || b.touching.down || !!e.onSlope;
       // 봉인 게이지가 찰수록 느려짐 (구체에 갇히기 직전엔 거의 못 움직임)
       const slow = e.hits > 0 ? Math.max(0.3, 1 - 0.6 * e.hits / e.hp) : 1;
       const spd = e.def.speed * (e.angry ? T.ANGRY_MULT : 1) * (this.hurry ? 1.15 : 1) * slow;
@@ -1102,7 +1171,8 @@
 
     updateSealed(e, time) {
       const b = e.body, pushed = e.pushedAt === time;
-      if (!pushed && time > (e.inchUntil || 0)) b.setVelocityX(b.velocity.x * 0.85);
+      if (e.onSlope && !pushed) b.setVelocityX(DT.clamp(b.velocity.x + e.onSlope.down * 260 * this.game.loop.delta / 1000, -150, 150));
+      else if (!pushed && time > (e.inchUntil || 0)) b.setVelocityX(b.velocity.x * 0.85);
       const left = this.S.sealTime + (e.kind === 'snail' ? 1500 : 0) - (time - e.sealedAt);
       const warn = left < T.SEAL_WARN;
       // 빠져나가려는 몸부림 (풀리기 직전일수록 자주)
@@ -1223,7 +1293,7 @@
       const w = this.waves.create(e.x, e.y, 'wave', 0);
       w.isWave = true; w.dir = dir; w.combo = 1; w.rollDir = dir; w.bornAt = this.time.now; w.nextFrame = 0; w.bounces = 0;
       w.setScale(DT.SPR).setDepth(12).setFlipX(dir < 0);
-      w.body.setSize(26, 16).setOffset(1, 4);
+      w.body.setSize(8, 14).setOffset(10, 6);   // 몸통은 좁게 → 한 칸 틈으로도 물이 흘러내림
       w.body.setVelocity(dir * this.S.orbSpeed * 0.9, -40);
       w.life = 2600 + (this.S.orbBounces - 3) * 900;
       DT.Audio.sfx('kick');
@@ -1240,6 +1310,24 @@
     updateWave(w, time) {
       if (!w.active) return;
       const b = w.body;
+      const onG = b.blocked.down || b.touching.down || !!w.onSlope;
+      if (!onG && b.velocity.y > 40) {
+        // 떨어지는 중: 가늘고 길게 (폭포)
+        w.setScale(DT.SPR * 0.55, DT.SPR * 1.35);
+        if (Math.random() < 0.6) this.fxPx.emitParticleAt(w.x + Phaser.Math.Between(-3, 3), w.y - 6, 1);
+        w.wasFalling = true;
+      } else if (onG && w.wasFalling) {
+        // 착지: 첨벙! 같은 방향으로 계속 흐름
+        w.wasFalling = false;
+        w.setScale(DT.SPR);
+        this.fxPx.explode(10, w.x, w.y + 6);
+        DT.Audio.sfx('shoot', 'line');
+      }
+      // 넓은 물결 범위로 적 휩쓸기 (몸통이 좁아도 그림만큼 판정)
+      this.enemies.getChildren().forEach(e => {
+        if (e.active && (e.state === 'active' || e.state === 'sealed' || e.state === 'spawn') && Math.abs(e.x - w.x) < 18 && Math.abs(e.y - w.y) < 16) this.chainKill(w, e);
+      });
+      if (w.onSlope && w.dir !== w.onSlope.down) { w.dir = w.onSlope.down; w.rollDir = w.dir; w.setFlipX(w.dir < 0); }   // 경사로에서는 아래쪽으로 흐름
       if ((b.blocked.left && w.dir < 0) || (b.blocked.right && w.dir > 0)) {
         w.bounces++;
         this.fxPx.explode(8, w.x + w.dir * 10, w.y);
@@ -1614,6 +1702,7 @@
       if (this.isPaused) return;
       time = this.time.now;
 
+      this.applySlopes();
       this.updatePlayer(time);
       this.enemies.getChildren().slice().forEach(e => this.updateEnemy(e, time));
       this.seeds.getChildren().slice().forEach(s => {
