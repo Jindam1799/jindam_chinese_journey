@@ -799,7 +799,7 @@
       e.dir = spec.x < DT.W / 2 ? 1 : -1;
       e.nextAct = this.time.now + Phaser.Math.Between(1500, 3000);
       e.knockUntil = 0; e.lastHitAt = 0; e.nextDecayAt = 0; e.nextTick = 0; e.attackUntil = 0;
-      e.shell = this.add.image(e.x, e.y, 'orb').setVisible(false).setDepth(7).setScale(DT.SPR);
+      e.shell = this.add.image(e.x, e.y, 'orb_' + this.hero).setVisible(false).setDepth(7).setScale(DT.SPR);
       e.flyer = !!e.def.fly;
       if (e.flyer) { e.body.setAllowGravity(false); e.baseY = spec.y; e.phase = Math.random() * 6; }
       e.play(spec.kind + '_walk');
@@ -832,10 +832,17 @@
 
     enemyAI(e, time) {
       const b = e.body, onGround = b.blocked.down || b.touching.down;
-      const spd = e.def.speed * (e.angry ? T.ANGRY_MULT : 1) * (this.hurry ? 1.15 : 1);
+      // 봉인 게이지가 찰수록 느려짐 (구체에 갇히기 직전엔 거의 못 움직임)
+      const slow = e.hits > 0 ? Math.max(0.3, 1 - 0.6 * e.hits / e.hp) : 1;
+      const spd = e.def.speed * (e.angry ? T.ANGRY_MULT : 1) * (this.hurry ? 1.15 : 1) * slow;
       if (time < e.knockUntil) return;
       if (b.blocked.left) e.dir = 1; else if (b.blocked.right) e.dir = -1;
       const p = this.player;
+      if (e.kind !== 'frog') e.play(e.kind + (e.hits > 0 ? '_struggle' : '_walk'), true);
+      if (e.hits > 0) {
+        if (time > (e.sweatAt || 0)) { e.sweatAt = time + 700; this.fxPx.emitParticleAt(e.x + Phaser.Math.Between(-5, 5), e.y - 10, 2); }
+        if (this.struggleAI(e, time, onGround, spd)) { e.setFlipX(e.dir < 0); return; }
+      }
 
       if (e.kind === 'mush') {
         if (onGround && !this.groundAhead(e)) e.dir *= -1;
@@ -886,8 +893,9 @@
           b.setVelocityX(0);
           if (time > e.nextAct) {
             e.dir = p.x < e.x ? -1 : 1;
-            b.setVelocityY(p.y < e.y - 20 ? -330 : -230);
-            b.setVelocityX(e.dir * (e.angry ? 120 : 85));
+            const weak = e.hits > 0 ? 0.55 : 1;
+            b.setVelocityY((p.y < e.y - 20 ? -330 : -230) * weak);
+            b.setVelocityX(e.dir * (e.angry ? 120 : 85) * weak);
             e.nextAct = time + Phaser.Math.Between(1300, 2300) / (e.angry ? 1.4 : 1);
           }
         }
@@ -902,6 +910,31 @@
         b.setVelocityX(e.dir * spd);
       }
       e.setFlipX(e.dir < 0);
+    }
+
+    /* ── 봉인되기 직전: 몬스터마다 다르게 버둥거림 ── */
+    struggleAI(e, time, onGround, spd) {
+      const b = e.body, p = this.player;
+      switch (e.kind) {
+        case 'gob': // 제자리에서 폴짝폴짝 털어내려 함
+          if (onGround && time > (e.strugNext || 0)) { e.strugNext = time + 360; b.setVelocity(Phaser.Math.Between(-35, 35), -150); }
+          return true;
+        case 'thief': // 플레이어 반대쪽으로 도망
+          e.dir = p.x < e.x ? 1 : -1; b.setVelocityX(e.dir * spd * 1.3); return true;
+        case 'snail': // 껍데기 속에 쏙 숨어 꼼짝 안 함
+          b.setVelocityX(0); e.anims.stop(); e.setFrame(2); return true;
+        case 'monkey': // 부르르 떨며 제자리
+          b.setVelocityX(Math.floor(time / 90) % 2 ? 22 : -22); return true;
+        case 'puppy': // 허둥지둥 빙글빙글
+          if (time > (e.strugNext || 0)) { e.strugNext = time + 380; e.dir *= -1; }
+          b.setVelocityX(e.dir * spd * 1.4); return true;
+        case 'bird': // 날갯짓이 엉망이 되어 점점 아래로
+          e.baseY = Math.min(e.baseY + 0.35, this.cameras.main.worldView.y + 200); e.phase += 0.08; return false;
+        case 'dragon': // 불 대신 연기만 콜록
+          if (time > (e.strugNext || 0)) { e.strugNext = time + 600; this.fxDust.explode(3, e.x + e.dir * 10, e.y - 2); }
+          return false;
+        default: return false; // 혼동버섯 · 개구리: 느려지기만 (개구리는 점프가 약해짐)
+      }
     }
 
     /* ── 몬스터 탄 ── */
@@ -951,6 +984,7 @@
       const p = this.player, b = e.body;
       const dx = p.x - e.x, dy = p.y - e.y;
       if (time < e.attackUntil) { b.setVelocityX(0); return true; }
+      if (e.hits > 0) return false;
       if (e.kind === 'dragon') {
         if (onGround && time > e.nextAct && Math.abs(dy) < 26 && Math.abs(dx) < 220) {
           e.dir = dx < 0 ? -1 : 1; e.setFlipX(e.dir < 0);
@@ -1067,9 +1101,19 @@
     }
 
     updateSealed(e, time) {
-      if (e.pushedAt !== time) e.body.setVelocityX(e.body.velocity.x * 0.85);
-      const left = this.S.sealTime - (time - e.sealedAt);
+      const b = e.body, pushed = e.pushedAt === time;
+      if (!pushed && time > (e.inchUntil || 0)) b.setVelocityX(b.velocity.x * 0.85);
+      const left = this.S.sealTime + (e.kind === 'snail' ? 1500 : 0) - (time - e.sealedAt);
       const warn = left < T.SEAL_WARN;
+      // 빠져나가려는 몸부림 (풀리기 직전일수록 자주)
+      if (!pushed && time > (e.strugNext || 0)) {
+        e.strugNext = time + (warn ? 450 : 1100) + Math.random() * 300;
+        const onG = b.blocked.down || b.touching.down;
+        if (['gob', 'frog', 'monkey', 'puppy'].indexOf(e.kind) >= 0 && onG) { b.setVelocityY(e.kind === 'frog' ? -170 : -110); DT.Audio.sfx('tick'); }
+        else if (e.kind === 'thief' || e.kind === 'mush') { b.setVelocityX((Math.random() < 0.5 ? -1 : 1) * 28); e.inchUntil = time + 220; }
+        else if (e.kind === 'bird' && onG) b.setVelocityY(-80);
+        else if (e.kind === 'dragon') this.fxDust.explode(4, e.x, e.y - 10);
+      }
       e.shell.x += Math.round(Math.sin(time / (warn ? 30 : 90)) * (warn ? 1.5 : 0.6));
       e.x !== undefined && e.setFlipX(Math.floor(time / 300) % 2 === 0);
       if (warn) {
@@ -1418,11 +1462,10 @@
       this.time.delayedCall(250, () => DT.Audio.speak(v.hanzi));
 
       const box = DT.panel(this, 92, 34, 136, 58, { border: DT.C.yellow, fill: DT.C.ink, alpha: 0.95, depth: 55 });
-      const t0 = DT.ptext(this, 160, 39, 'CHUNK GET!', { ox: 0.5, tint: 0xffcd75, depth: 56 });
-      const t1 = DT.text(this, 160, 58, v.hanzi, { font: 'zh', size: 18, color: '#a7f070', strokeThickness: 3, depth: 56 });
+      const t1 = DT.text(this, 160, 54, v.hanzi, { font: 'zh', size: 18, color: '#a7f070', strokeThickness: 3, depth: 56 });
       const t2 = DT.text(this, 160, 74, v.pinyin + '  ·  ' + v.meaning, { font: 'ko', size: 9, color: '#f4f4f4', depth: 56 });
       const t3 = DT.text(this, 160, 86, reward, { font: 'ko', size: 8, color: '#ffcd75', depth: 56 });
-      const all = [box, t0, t1, t2, t3];
+      const all = [box, t1, t2, t3];
       this.ui.add(all);
       all.forEach(o => o.setAlpha(0));
       this.tweens.add({ targets: all, alpha: 1, duration: 150 });

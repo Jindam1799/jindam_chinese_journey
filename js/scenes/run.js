@@ -71,11 +71,8 @@
       this.cards[this.sel].spr.play(h.id + '_win');
       this.cameras.main.flash(150, 255, 255, 255);
       const run = DT.newRun(h.id);
-      const seen = DT.store.get('dentree_story', '0') === '1';
-      this.time.delayedCall(500, () => {
-        if (seen) DT.toStage(this, run);
-        else this.scene.start('Intro', { next: 'StageStory', data: { run } });
-      });
+      // 게임을 시작하면 스토리 영상이 자동으로 재생 (건너뛰기 가능)
+      this.time.delayedCall(500, () => this.scene.start('Intro', { next: 'Stage', data: { run } }));
     }
     update() {
       DT.Input.update();

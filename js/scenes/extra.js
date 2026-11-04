@@ -228,6 +228,107 @@
     }
   }
 
+
+  /* ───────── 도감 (캐릭터 · 몬스터) ───────── */
+  const MON_INFO = {
+    mush: ['머리에 ?를 띄우며 발판 위를 왔다 갔다 해요. 가끔 깡충 뛰어요.', '구이린'],
+    gob: ['먹물로 만들어진 장난꾸러기. 이쪽으로 폴짝폴짝 뛰어와요.', '구이린 · 장자제'],
+    thief: ['떨어진 한자 조각을 훔쳐 가요! 빨리 주워야 해요.', '주자이거우 · 황산'],
+    bird: ['물결처럼 오르락내리락 날아다녀요. 맞히기 어렵지만 약해요.', '모든 곳'],
+    frog: ['한참 웅크렸다가 크게 점프해요. 착지할 곳을 조심!', '장자제 · 주자이거우'],
+    snail: ['아주 느리지만 껍데기가 단단해서 여러 번 맞혀야 해요.', '모든 곳'],
+    dragon: ['같은 높이에 있으면 반짝인 뒤 입에서 불덩이를 뿜어요.', '주자이거우 · 황산'],
+    monkey: ['복숭아를 포물선으로 던져요. 씨앗탄으로 맞혀 없앨 수 있어요.', '장자제 · 주자이거우 · 황산'],
+    puppy: ['지나가며 똥을 누고 가요. 밟으면 아야! 체력이 줄어요.', '구이린 · 장자제 · 황산']
+  };
+  const BOSS_INFO = [
+    { kind: 'mush', name: '거대 혼동버섯', tint: 0xe6b8ff, where: '1-8 구이린', desc: '혼란의 포자를 부채꼴로 뿜고, 돌진하고, 충격파 점프를 해요.' },
+    { kind: 'gob', name: '왕먹깨비', tint: 0xb8c8ff, where: '2-8 장자제', desc: '먹물 덩어리를 비처럼 던지고 벽까지 돌진해요.' },
+    { kind: 'frog', name: '대왕 병음개구리', tint: 0xffd0a0, where: '3-8 주자이거우', desc: '하늘 높이 뛰어올라 착지할 때 충격파를 일으켜요.' },
+    { kind: 'thief', name: '도둑대왕', tint: 0xffe08a, where: '4-8 황산', desc: '빠르게 돌진하고 물건을 던지는 숲의 조각 도둑 우두머리.' }
+  ];
+  const SHOT_TEXT = { arc: '포물선 씨앗탄', line: '일직선 물방울탄', roll: '바닥을 굴러가는 도토리탄' };
+  const ORB_TEXT = { roll: '새싹 구체가 데굴데굴 굴러가며 적을 쓰러뜨려요.', wave: '물방울 구체가 물결이 되어 바닥을 따라 흘러가요.', blast: '도토리 구체가 펑! 터지며 주변 적까지 휩쓸어요.' };
+
+  class DexScene extends Phaser.Scene {
+    constructor() { super('Dex'); }
+    init(d) { this.tab = (d && d.tab) || 'hero'; this.sel = 0; }
+    create() {
+      DT.setupCamera(this);
+      this.add.image(0, 0, 'bg_guilin').setOrigin(0);
+      this.add.rectangle(0, 0, DT.W, DT.H, DT.C.ink, 0.5).setOrigin(0);
+      this.layer = this.add.container(0, 0);
+      this.build();
+    }
+    entries() {
+      if (this.tab === 'hero') return DT.HEROES.map(h => ({ type: 'hero', h }));
+      return DT.ENEMY_KINDS.map(k => ({ type: 'mon', k })).concat(BOSS_INFO.map(b => ({ type: 'boss', b })));
+    }
+    build() {
+      this.layer.removeAll(true);
+      const L = (o) => { this.layer.add(o); return o; };
+      const list = this.entries();
+      this.sel = DT.clamp(this.sel, 0, list.length - 1);
+      L(DT.ptext(this, 160, 6, this.tab === 'hero' ? 'CHARACTERS' : 'MONSTERS', { ox: 0.5, tint: 0xffcd75, scale: 2 }));
+      L(DT.text(this, 160, 28, this.tab === 'hero' ? '캐릭터 도감' : '몬스터 도감', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+      // 썸네일 줄
+      const n = list.length, w = this.tab === 'hero' ? 40 : 22, x0 = 160 - (n * w) / 2 + w / 2;
+      list.forEach((e, i) => {
+        const x = x0 + i * w, y = 52, on = i === this.sel;
+        L(this.add.rectangle(x, y, w - 3, 22, on ? 0xffcd75 : 0x1a1c2c, on ? 0.9 : 0.7));
+        const key = e.type === 'hero' ? 'hero_' + e.h.id : e.type === 'mon' ? e.k : e.b.kind;
+        const sp = L(this.add.sprite(x, y, key, 0).setScale(e.type === 'hero' ? 1.2 : 1));
+        if (e.type === 'boss') { sp.setTint(e.b.tint); L(this.add.image(x, y - 9, 'crown').setScale(0.6)); }
+        L(this.add.zone(x, y, w - 2, 22).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sel = i; DT.Audio.sfx('select'); this.build(); }));
+      });
+      // 상세
+      L(DT.panel(this, 14, 68, 292, 142, { border: DT.C.yellow, fill: DT.C.ink, alpha: 0.92 }));
+      const e = list[this.sel];
+      if (e.type === 'hero') {
+        const h = e.h, st = DT.newRun(h.id).stats;
+        const big = L(this.add.sprite(64, 124, 'hero_' + h.id, 0).setScale(4)); big.play(h.id + '_run');
+        L(this.add.image(64, 180, 'orb_' + h.id).setScale(1.6));
+        L(DT.text(this, 118, 82, h.name + '  ·  ' + h.title, { font: 'ko', size: 13, color: h.color, strokeThickness: 3, ox: 0 }));
+        L(DT.text(this, 118, 100, '공격: ' + SHOT_TEXT[h.shot], { font: 'ko', size: 9, color: '#ffffff', stroke: null, ox: 0 }));
+        L(DT.text(this, 118, 113, '구체: ' + ORB_TEXT[h.orb], { font: 'ko', size: 8, color: '#e8f4ff', stroke: null, ox: 0, wrap: 180, align: 'left' }));
+        DT.statBars(st).forEach((b, k) => {
+          const by = 140 + k * 12;
+          L(DT.text(this, 118, by, b[0], { font: 'ko', size: 8, color: '#ffffff', stroke: null, ox: 0 }));
+          L(this.add.rectangle(170, by - 2, 120, 5, 0x333c57).setOrigin(0));
+          L(this.add.rectangle(170, by - 2, Math.round(120 * b[1]), 5, Phaser.Display.Color.HexStringToColor(h.color).color).setOrigin(0));
+        });
+      } else if (e.type === 'mon') {
+        const k = e.k, def = DT.ENEMY_DEFS[k], info = MON_INFO[k] || ['', ''];
+        const big = L(this.add.sprite(64, 130, k, 0).setScale(4)); big.play(k + '_walk');
+        L(this.add.image(64, 130, 'orb_tuk').setScale(4.4).setAlpha(0.25));
+        L(DT.text(this, 118, 84, def.name, { font: 'ko', size: 14, color: '#ffcd75', strokeThickness: 3, ox: 0 }));
+        L(DT.text(this, 118, 108, info[0], { font: 'ko', size: 9, color: '#ffffff', stroke: null, ox: 0, oy: 0, wrap: 180, align: 'left' }).setOrigin(0, 0));
+        L(DT.text(this, 118, 150, '나오는 곳: ' + info[1], { font: 'ko', size: 8, color: '#73eff7', stroke: null, ox: 0 }));
+        L(DT.text(this, 118, 164, '봉인까지: 씨앗탄 ' + def.hp + '번', { font: 'ko', size: 8, color: '#a7f070', stroke: null, ox: 0 }));
+        for (let i = 0; i < def.hp; i++) L(this.add.image(206 + i * 9, 164, 'heart').setOrigin(0, 0.5));
+      } else {
+        const b = e.b;
+        const big = L(this.add.sprite(64, 168, b.kind, 0).setOrigin(0.5, 1).setScale(5).setTint(b.tint)); big.play(b.kind + '_walk');
+        L(this.add.image(64, 168 - 16 * 5 + 6, 'crown').setScale(2));
+        L(DT.text(this, 118, 84, b.name, { font: 'ko', size: 14, color: '#ef7d57', strokeThickness: 3, ox: 0 }));
+        L(DT.ptext(this, 118, 96, 'BOSS  ' + b.where.split(' ')[0], { tint: 0xb13e53 }));
+        L(DT.text(this, 118, 116, b.desc, { font: 'ko', size: 9, color: '#ffffff', stroke: null, ox: 0, oy: 0, wrap: 180, align: 'left' }).setOrigin(0, 0));
+        L(DT.text(this, 118, 160, '약점: 졸개를 봉인한 구체로만 공격할 수 있어요!', { font: 'ko', size: 8, color: '#a7f070', stroke: null, ox: 0, wrap: 180, align: 'left' }));
+      }
+      L(DT.text(this, 160, 218, '←→ 넘기기 · 점프(SPACE) ' + (this.tab === 'hero' ? '몬스터 도감' : '캐릭터 도감') + ' · 공격(Z) 돌아가기', { font: 'ko', size: 8, color: '#ffffff', strokeThickness: 2 }));
+      L(DT.text(this, 160, 232, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#e8f4ff', strokeThickness: 2 }));
+    }
+    update() {
+      DT.Input.update();
+      const I = DT.Input, n = this.entries().length;
+      if (I.justDown('left') || I.justDown('up')) { this.sel = (this.sel + n - 1) % n; DT.Audio.sfx('select'); this.build(); }
+      if (I.justDown('right') || I.justDown('down')) { this.sel = (this.sel + 1) % n; DT.Audio.sfx('select'); this.build(); }
+      if (I.justDown('jump')) { this.tab = this.tab === 'hero' ? 'mon' : 'hero'; this.sel = 0; DT.Audio.sfx('collect'); this.build(); }
+      if (I.justDown('fire') || I.justDown('confirm') || I.justDown('pause')) { DT.Audio.sfx('select'); this.scene.start('Title'); }
+    }
+  }
+
+  DT.DexScene = DexScene;
   DT.SettingsScene = SettingsScene;
   DT.HallScene = HallScene;
   DT.NameEntryScene = NameEntryScene;

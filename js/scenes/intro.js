@@ -10,6 +10,7 @@
     '그런데 어느 날 밤, 땅속 깊은 곳에서\n거대 혼동버섯이 깨어났어요!',
     '혼란의 포자가 퍼지자 덩어리들은 산산조각!\n몬스터들이 조각을 몽땅 가져가 버렸어요.',
     '그때, 말의 나무가 마지막 힘으로 씨앗 세 알을 떨어뜨렸어요.\n새싹 툭이, 물방울 퐁이, 도토리 도토가 태어났어요!',
+    '새싹 정령 툭이는 말의 나무 가지 끝, 가장 여린 새싹에서 깨어났어요.\n포물선 씨앗탄을 던지고, 무엇이든 고르게 잘해요!',
     '물방울 정령 퐁이는 리강의 맑은 물방울에서 깨어났어요.\n누구보다 빠르게 달리며 물방울탄을 일직선으로 쏘아요!',
     '도토리 정령 도토는 황산 소나무의 도토리에서 깨어났어요.\n느릿느릿해도 힘이 세서 한 방이면 몬스터가 데굴데굴!',
     '세 정령은 힘을 모아 길을 떠났어요.\n“봉인하고 차서 날려 버리자! 말의 조각을 모두 되찾자!”'
@@ -90,7 +91,10 @@
       DT.Audio.music(false);
       const cam = this.cameras.main;
       cam.fadeOut(400, 0, 0, 0);
-      cam.once('camerafadeoutcomplete', () => this.scene.start(this.nextKey, this.nextData));
+      cam.once('camerafadeoutcomplete', () => {
+        if (this.nextKey === 'Stage') DT.toStage(this, this.nextData.run);
+        else this.scene.start(this.nextKey, this.nextData);
+      });
     }
 
     /* ── 컷 1: 평화로운 말의 나무 ── */
@@ -180,8 +184,26 @@
           } });
       });
     }
-    /* ── 컷 6: 퐁이 소개 (리강) ── */
+    /* ── 컷 6: 툭이 소개 (말의 나무) ── */
     shot5() {
+      this.add2(this.add.image(0, 0, 'bg_forest').setOrigin(0));
+      this.add2(this.add.image(250, 194, 'tree').setOrigin(0.5, 1).setScale(0.8));
+      const tuk = this.add2(this.add.sprite(80, 120, 'hero_tuk', 5).setScale(2.6));
+      this.tweens.add({ targets: tuk, y: 172, duration: 700, ease: 'Bounce.easeOut', onComplete: () => {
+        tuk.play('tuk_idle');
+        const target = this.add2(this.add.sprite(220, 172, 'mush', 0).setScale(2.4).setFlipX(true)); target.play('mush_walk');
+        for (let i = 0; i < 3; i++) this.time.delayedCall(300 + i * 380, () => {
+          tuk.setFrame(7); DT.Audio.sfx('shoot', 'arc');
+          const s = this.add2(this.add.image(96, 170, 'seed_tuk').setScale(2));
+          this.tweens.addCounter({ from: 0, to: 1, duration: 450, onUpdate: (tw) => { const t = tw.getValue(); s.x = 96 + 118 * t; s.y = 170 - Math.sin(t * Math.PI) * 34; s.angle = t * 540; },
+            onComplete: () => { s.destroy(); DT.Audio.sfx('hit', i + 1); target.setTintFill(0xffffff); this.time.delayedCall(60, () => target.clearTint()); } });
+        });
+      } });
+      this.add2(DT.text(this, 160, 76, '툭이', { font: 'ko', size: 22, color: '#a7f070', strokeThickness: 4 }));
+      this.add2(DT.text(this, 160, 100, '포물선 씨앗탄! 뭐든지 골고루!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+    }
+    /* ── 컷 7: 퐁이 소개 (리강) ── */
+    shot6() {
       this.add2(this.add.image(0, 0, 'bg_guilin').setOrigin(0));
       const pong = this.add2(this.add.sprite(-20, 172, 'hero_pong', 0).setScale(2.6));
       pong.play('pong_run');
@@ -198,8 +220,8 @@
       this.add2(DT.text(this, 220, 120, '퐁이', { font: 'ko', size: 22, color: '#73eff7', strokeThickness: 4 }));
       this.add2(DT.text(this, 220, 144, '빠르다! 일직선!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
     }
-    /* ── 컷 7: 도토 소개 (황산) ── */
-    shot6() {
+    /* ── 컷 8: 도토 소개 (황산) ── */
+    shot7() {
       this.add2(this.add.image(0, 0, 'bg_huangshan').setOrigin(0));
       const doto = this.add2(this.add.sprite(110, 172, 'hero_doto', 0).setScale(2.8));
       doto.play('doto_idle');
@@ -218,8 +240,8 @@
       this.add2(DT.text(this, 150, 92, '도토', { font: 'ko', size: 22, color: '#ffcd75', strokeThickness: 4 }));
       this.add2(DT.text(this, 150, 116, '느려도 한 방은 최고!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
     }
-    /* ── 컷 8: 결심! 봉인 시범 ── */
-    shot7() {
+    /* ── 컷 9: 결심! 봉인 시범 ── */
+    shot8() {
       this.add2(this.add.image(0, 0, 'bg_guilin').setOrigin(0));
       const hero = this.add2(this.add.sprite(80, 168, 'hero_tuk', 0).setScale(2.4));
       hero.play('tuk_idle');

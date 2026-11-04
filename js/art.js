@@ -84,6 +84,44 @@
     px(ctx, 10, 1, '#38b764'); px(ctx, 11, 1, '#38b764');
   }
 
+  /* ── 퐁이의 구체: 투명한 물방울 (출렁이는 물결선 + 큰 반사광) ── */
+  function drawOrbPong(ctx) {
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+      const dx = x + 0.5 - 10, dy = y + 0.5 - 10, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 9.6) continue;
+      if (d > 8.6) px(ctx, x, y, '#29366f');
+      else if (d > 7.6) px(ctx, x, y, 'rgba(65,166,246,0.9)');
+      else if (y > 12) px(ctx, x, y, 'rgba(65,166,246,0.45)');
+      else px(ctx, x, y, 'rgba(184,230,255,0.25)');
+    }
+    for (let x = 3; x < 17; x++) px(ctx, x, 12 + Math.round(Math.sin(x * 0.9)), '#b8e6ff');
+    [[5, 4], [6, 4], [4, 5], [4, 6], [5, 5], [7, 3], [8, 3]].forEach(p => px(ctx, p[0], p[1], '#ffffff'));
+    [[13, 6], [14, 7]].forEach(p => px(ctx, p[0], p[1], 'rgba(255,255,255,0.7)'));
+    // 위쪽 물방울 꼭지
+    px(ctx, 10, 0, '#41a6f6'); px(ctx, 9, 1, '#41a6f6'); px(ctx, 10, 1, '#b8e6ff');
+  }
+  /* ── 도토의 구체: 단단한 도토리 껍데기 (모자 + 결무늬 + 금) ── */
+  function drawOrbDoto(ctx) {
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+      const dx = x + 0.5 - 10, dy = y + 0.5 - 10, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 9.6) continue;
+      if (d > 8.5) px(ctx, x, y, '#5e3a1e');
+      else if (d > 7.4) px(ctx, x, y, 'rgba(194,124,74,0.9)');
+      else px(ctx, x, y, 'rgba(242,195,138,0.3)');
+    }
+    // 도토리 모자 (위쪽 띠)
+    for (let y = 1; y < 6; y++) for (let x = 0; x < 20; x++) {
+      const dx = x + 0.5 - 10, dy = y + 0.5 - 10, d = Math.sqrt(dx * dx + dy * dy);
+      if (d <= 9.6) px(ctx, x, y, (x + y) % 3 === 0 ? '#5e3a1e' : '#8a4b2a');
+    }
+    rect(ctx, 3, 6, 14, 1, '#5e3a1e');
+    rect(ctx, 9, 0, 2, 2, '#5e3a1e');
+    // 결무늬 + 금
+    [[6, 9], [6, 10], [7, 11], [13, 9], [14, 10], [13, 11]].forEach(p => px(ctx, p[0], p[1], 'rgba(138,75,42,0.7)'));
+    [[11, 13], [12, 14], [11, 15], [12, 16]].forEach(p => px(ctx, p[0], p[1], '#5e3a1e'));
+    [[5, 8], [4, 9], [5, 9]].forEach(p => px(ctx, p[0], p[1], '#fff2c4'));
+  }
+
   /* ───────────── 맵 테마 ───────────── */
   const THEMES = {
     forest: {
@@ -422,6 +460,9 @@
       Object.keys(g.deco).forEach(k => addSheet(scene, 'deco_' + k, [g.deco[k]], P));
 
       addSingle(scene, 'orb', 20, 20, drawOrb);
+      addSingle(scene, 'orb_tuk', 20, 20, drawOrb);
+      addSingle(scene, 'orb_pong', 20, 20, drawOrbPong);
+      addSingle(scene, 'orb_doto', 20, 20, drawOrbDoto);
       addSingle(scene, 'px', 2, 2, (ctx) => rect(ctx, 0, 0, 2, 2, '#fff'));
       addSingle(scene, 'glow', 5, 5, (ctx) => {
         ctx.fillStyle = 'rgba(255,240,160,0.35)'; ctx.fillRect(1, 0, 3, 5); ctx.fillRect(0, 1, 5, 3);

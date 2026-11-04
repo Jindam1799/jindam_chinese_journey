@@ -59,7 +59,7 @@
       input: { activePointers: 3 },
       scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
       physics: { default: 'arcade', arcade: { gravity: { y: DT.TUNING.GRAVITY }, debug: false } },
-      scene: [DT.BootScene, DT.TitleScene, DT.SelectScene, DT.IntroScene, DT.GameScene, DT.QuizScene, DT.UpgradeScene, DT.GameOverScene, DT.EndingScene, DT.HallScene, DT.NameEntryScene, DT.StageStoryScene, DT.SettingsScene],
+      scene: [DT.BootScene, DT.TitleScene, DT.SelectScene, DT.IntroScene, DT.GameScene, DT.QuizScene, DT.UpgradeScene, DT.GameOverScene, DT.EndingScene, DT.HallScene, DT.NameEntryScene, DT.StageStoryScene, DT.DexScene, DT.SettingsScene],
       callbacks: {
         postBoot: (game) => {
           game.canvas.addEventListener('webglcontextlost', () => DT.showError('그래픽 장치가 초기화되었습니다.', '페이지를 새로고침해 주세요.'));

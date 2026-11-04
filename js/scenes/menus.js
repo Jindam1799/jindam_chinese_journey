@@ -50,10 +50,10 @@
       });
 
       // 메뉴: 게임 시작 · 스토리 · 명예의 전당 · 설정
-      this.menu = [['게임 시작', 'start'], ['스토리', 'story'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
-        const x = 52 + i * 72;
-        const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 });
-        this.add.zone(x, 182, 66, 18).setInteractive({ useHandCursor: true }).on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.sel = i; this.pick(); });
+      this.menu = [['게임 시작', 'start'], ['캐릭터 도감', 'dexHero'], ['몬스터 도감', 'dexMon'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
+        const x = 34 + i * 63;
+        const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 10, color: '#ffffff', strokeThickness: 3 });
+        this.add.zone(x, 182, 60, 18).setInteractive({ useHandCursor: true }).on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.sel = i; this.pick(); });
         return { t, act: m[1], x };
       });
       this.sel = 0;
@@ -73,12 +73,12 @@
     refreshMenu() {
       this.menu.forEach((m, i) => m.t.setColor(i === this.sel ? '#ffcd75' : '#ffffff').setScale(i === this.sel ? 1.12 : 1));
       const m = this.menu[this.sel];
-      this.cursor.setX(m.x - m.t.width * 0.56 - 2);
+      this.cursor.setX(m.x - m.t.width * 0.56 - 1);
     }
     pick() {
       const a = this.menu[this.sel].act;
       if (a === 'start') this.begin(false);
-      else if (a === 'story') this.begin(true);
+      else if (a === 'dexHero' || a === 'dexMon') { DT.Audio.sfx('select'); this.scene.start('Dex', { tab: a === 'dexHero' ? 'hero' : 'mon' }); }
       else if (a === 'hall') { DT.Audio.sfx('select'); this.scene.start('Hall', { next: 'Title' }); }
       else if (a === 'settings') { DT.Audio.unlock(); DT.openSettings(); }
     }
@@ -99,8 +99,7 @@
       const I = DT.Input, n = this.menu.length;
       if (I.justDown('left') || I.justDown('up')) { this.sel = (this.sel + n - 1) % n; this.refreshMenu(); DT.Audio.sfx('select'); }
       if (I.justDown('right') || I.justDown('down')) { this.sel = (this.sel + 1) % n; this.refreshMenu(); DT.Audio.sfx('select'); }
-      if (I.justDown('jump')) this.begin(true);
-      else if (I.justDown('fire') || I.justDown('confirm')) this.pick();
+      if (I.justDown('fire') || I.justDown('confirm')) this.pick();
     }
   }
 
