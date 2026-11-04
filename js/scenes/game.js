@@ -1681,6 +1681,7 @@
       if (this.dead) return;
       const ch = this.nextDropChar();
       if (!ch) return;
+      ({ x, y } = this.freeSpot(x, y));
       const f = this.frags.create(x, y, 'token');
       f.setDepth(15);
       f.body.setSize(12, 12);
@@ -1694,9 +1695,28 @@
       if (this.cleared) this.time.delayedCall(250, () => this.onCollect(this.player, f));
     }
 
+    // 블록(#) 안이면 가장 가까운 빈칸(위쪽 우선, 다음 옆쪽)으로 옮김 — 조각이 못 가는 곳에 갇히지 않게
+    solidAt(x, y) {
+      const m = this.stage.map, r = Math.floor(y / 16), c = Math.floor(x / 16);
+      return !!(m[r] && m[r][c] === '#');
+    }
+    freeSpot(x, y) {
+      const inside = (px, py) => this.solidAt(px - 6, py - 6) || this.solidAt(px + 6, py - 6) || this.solidAt(px - 6, py + 6) || this.solidAt(px + 6, py + 6);
+      if (!inside(x, y)) return { x, y };
+      const cx = Math.floor(x / 16) * 16 + 8, cy = Math.floor(y / 16) * 16 + 8;
+      for (let d = 1; d < 8; d++) {
+        const cand = [[cx, cy - d * 16], [cx - d * 16, cy], [cx + d * 16, cy], [cx - d * 16, cy - d * 16], [cx + d * 16, cy - d * 16]];
+        for (const [qx, qy] of cand) if (qx > 20 && qx < DT.W - 20 && qy > 20 && qy < this.mapH - 8 && !inside(qx, qy)) return { x: qx, y: qy };
+      }
+      return { x, y };
+    }
+
     updateFrags(time) {
       this.frags.getChildren().slice().forEach(f => {
         if (!f.active) return;
+        if (this.solidAt(f.x, f.y)) {   // 움직이는 발판 등에 밀려 블록 속에 들어가면 빼냄
+          const q = this.freeSpot(f.x, f.y); f.body.reset(q.x, q.y); f.body.setVelocity(0, -60);
+        }
         if (f.label) f.label.setPosition(Math.round(f.x), Math.round(f.y + 1));
         if (this.S.magnet && !this.dead) {
           const dx = this.player.x - f.x, dy = this.player.y - f.y, d = Math.hypot(dx, dy);
