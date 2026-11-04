@@ -41,7 +41,7 @@
       this.started = false; this.cleared = false; this.dead = false; this.isPaused = false; this.hurry = false;
       this.fireLocked = true; this.controlLocked = false; this.winPose = false; this.hitStopping = false;
       this.chainCombo = 0; this.chainUntil = 0;
-      this.strikeUntil = 0; this.pushing = false; this.dropkick = false; this.strikeAnim = 'kick';
+      this.strikeUntil = 0; this.dropUntil = 0; this.pushing = false; this.dropkick = false; this.strikeAnim = 'kick';
       this.inventory = []; this.completed = new Set(); this.dropIndex = 0;
       this.hudCache = {};
 
@@ -57,6 +57,8 @@
       this.enemies = this.physics.add.group();
       this.frags = this.physics.add.group();
       this.waves = this.physics.add.group();
+      this.eshots = this.physics.add.group();   // 몬스터·보스가 쏜 탄
+      this.poops = this.physics.add.group();    // 똥강아지가 남긴 똥
       this.createFx();
       this.createPlayer();
       this.spawns.forEach(s => this.spawnEnemy(s));
@@ -64,11 +66,37 @@
       if (this.stage.boss) this.createBoss(this.stage.boss);
 
       // 충돌
-      this.physics.add.collider(this.player, this.terrain, null, () => !this.dead);
+      // ↓ + 점프: 발판 아래로 내려가기 (일방향 발판만 통과, 바닥·벽은 그대로)
+      this.physics.add.collider(this.player, this.terrain, null, (a, b) => {
+        const z = a === this.player ? b : a;
+        return !this.dead && !(z.oneWay && this.time.now < this.dropUntil);
+      });
       this.physics.add.collider(this.enemies, this.terrain, null, (e) => e.state !== 'dead');
       this.physics.add.collider(this.seeds, this.terrain, (a, b) => this.popSeed(a.isSeed ? a : b));
       this.physics.add.collider(this.frags, this.terrain);
       this.physics.add.collider(this.waves, this.terrain);
+      this.physics.add.collider(this.eshots, this.terrain, (a, b) => { const sh = a.isShot ? a : b; this.popShot(sh); },
+        (a, b) => { const sh = a.isShot ? a : b, z = a.isShot ? b : a; return !(sh.solidOnly && z.oneWay); });
+      this.physics.add.collider(this.poops, this.terrain);
+      this.physics.add.overlap(this.player, this.eshots, (a, b) => {
+        const sh = a.isShot ? a : b;
+        if (!sh.active || this.dead || this.cleared || this.time.now < this.invUntil) return;
+        this.popShot(sh); this.hurtPlayer(sh);
+      });
+      this.physics.add.overlap(this.player, this.poops, (a, b) => {
+        const pp = a.isPoop ? a : b;
+        if (!pp.active || this.dead || this.cleared || this.time.now < this.invUntil) return;
+        this.popText(pp.x, pp.y - 10, '으악, 똥!', 0x8a4b2a);
+        DT.Audio.sfx('squish');
+        this.fxDust.explode(6, pp.x, pp.y);
+        pp.destroy();
+        this.hurtPlayer(pp);
+      });
+      this.physics.add.overlap(this.seeds, this.eshots, (a, b) => {
+        const sd = a.isSeed ? a : b, sh = a.isSeed ? b : a;
+        if (!sd.active || !sh.active || sh.unbreakable) return;
+        sd.destroy(); this.popShot(sh); this.addScore(20);
+      });
       this.physics.add.overlap(this.waves, this.enemies, (a, b) => { const w = a.isWave ? a : b, e = a.isWave ? b : a; this.waveHit(w, e); });
       this.physics.add.overlap(this.seeds, this.enemies, this.onSeedEnemy, (a, b) => { const e = a.isSeed ? b : a; return e.state === 'active' || e.state === 'sealed'; }, this);
       this.physics.add.collider(this.player, this.enemies, null, (a, b) => { const e = a === this.player ? b : a; return e.state === 'sealed' && !this.dead; });
@@ -152,6 +180,7 @@
       const z = this.add.zone(x + w / 2, y + h / 2, w, h);
       this.physics.add.existing(z, true);
       if (oneWay) {
+        z.oneWay = true;
         z.body.checkCollision.down = false;
         z.body.checkCollision.left = false;
         z.body.checkCollision.right = false;
@@ -262,7 +291,13 @@
       }
 
       // 점프 (코요테 타임 + 입력 버퍼 + 가변 높이)
-      if (!locked && I.justDown('jump')) this.jumpBufferUntil = time + T.JUMP_BUFFER_MS;
+      if (!locked && I.justDown('jump')) {
+        if (I.isDown('down') && onGround && this.onOneWay()) {
+          this.dropUntil = time + 260;
+          b.setVelocityY(60);
+          this.fxDust.explode(3, p.x, p.y + 8);
+        } else this.jumpBufferUntil = time + T.JUMP_BUFFER_MS;
+      }
       if (!knock && time < this.jumpBufferUntil && time - this.lastGroundAt <= T.COYOTE_MS) {
         b.setVelocityY(-this.S.jump);
         this.jumpBufferUntil = 0; this.lastGroundAt = -1e9; this.jumping = true;
@@ -330,6 +365,14 @@
         p.setTint(Math.floor(time / 80) % 2 ? 0xffffff : 0xffe9a0);
         if (Math.random() < 0.25) this.fxPx.emitParticleAt(p.x + Phaser.Math.Between(-6, 6), p.y + Phaser.Math.Between(-6, 6), 1);
       } else if (p.tintTopLeft !== 0xffffff) p.clearTint();
+    }
+
+    // 발밑이 일방향 발판(=·무너지는·움직이는)인지
+    onOneWay() {
+      const p = this.player, y = p.body.bottom + 1;
+      const hits = this.physics.overlapRect(p.body.x + 1, y, p.body.width - 2, 3, true, true);
+      if (!hits.length) return false;
+      return hits.every(bd => bd.gameObject && (bd.gameObject.oneWay || bd.gameObject.crumble || bd.gameObject.isMover));
     }
 
     // 플레이어 앞(dir 방향)에 있는 봉인 구체 찾기
@@ -430,20 +473,20 @@
         this.physics.add.collider(this.player, this.crumbles, (a, b) => {
           const t = a === this.player ? b : a;
           if (!t.falling && this.player.body.touching.down) this.startCrumble(t);
-        });
+        }, () => this.time.now >= this.dropUntil);
         this.physics.add.collider(this.enemies, this.crumbles, null, (e) => e.state !== 'dead');
       }
       // 움직이는 발판 (좌우 왕복, 위에 서면 함께 이동)
       this.moverSprites = (this.movers || []).map((m, i) => {
         const sp = this.physics.add.image(m.x, m.y, 'mplat_' + this.theme).setDepth(-1);
-        sp.body.setAllowGravity(false); sp.body.setImmovable(true);
+        sp.body.setAllowGravity(false); sp.body.setImmovable(true); sp.isMover = true;
         sp.body.checkCollision.down = sp.body.checkCollision.left = sp.body.checkCollision.right = false;
         sp.speed = 34 + (i % 3) * 8; sp.dir = i % 2 ? -1 : 1;
         sp.body.setVelocityX(sp.speed * sp.dir);
         return sp;
       });
       if (this.moverSprites.length) {
-        this.physics.add.collider(this.player, this.moverSprites, (a, b) => { this.riding = a === this.player ? b : a; });
+        this.physics.add.collider(this.player, this.moverSprites, (a, b) => { this.riding = a === this.player ? b : a; }, () => this.time.now >= this.dropUntil);
         this.physics.add.collider(this.enemies, this.moverSprites, null, (e) => e.state !== 'dead');
         this.physics.add.collider(this.frags, this.moverSprites);
       }
@@ -548,7 +591,7 @@
       b.body.setSize(12, 14).setOffset(2, 2);
       b.setCollideWorldBounds(true);
       b.def = def; b.hp = b.maxHp = def.hp; b.dir = -1; b.state = 'spawn';
-      b.nextJump = 0; b.nextSpawn = 0; b.invUntil = 0;
+      b.nextAttack = 0; b.nextSpawn = 0; b.invUntil = 0; b.attack = null; b.airborne = false;
       b.play(def.kind + '_walk');
       b.crown = this.add.image(b.x, b.y - 30, 'crown').setDepth(6).setScale(1.4);
       this.physics.add.collider(b, this.terrain, null, () => b.state !== 'dead');
@@ -588,34 +631,124 @@
     updateBoss(time) {
       const b = this.boss;
       if (!b || !b.active) return;
-      b.crown.setPosition(Math.round(b.x), Math.round(b.y - 28 + (b.anims.currentFrame && b.anims.currentFrame.index === 2 ? 1 : 0)));
+      b.crown.setPosition(Math.round(b.x), Math.round(b.y - 28));
       if (b.state !== 'active') return;
       const body = b.body, onGround = body.blocked.down || body.touching.down;
       const rage = b.hp <= b.maxHp / 2;
-      if (body.blocked.left) b.dir = 1; else if (body.blocked.right) b.dir = -1;
-      const spd = (b.def.kind === 'thief' ? 50 : 30) * (rage ? 1.5 : 1);
-      if (onGround) body.setVelocityX(b.dir * spd);
-      if (onGround && time > b.nextJump) {
-        b.dir = this.player.x < b.x ? -1 : 1;
-        body.setVelocityY(b.def.kind === 'frog' ? -380 : -300);
-        body.setVelocityX(b.dir * spd * 2.2);
-        b.nextJump = time + Phaser.Math.Between(2600, 4200) / (rage ? 1.4 : 1);
-        if (onGround) this.time.delayedCall(700, () => { if (b.active) this.cameras.main.shake(120, 0.004); });
-      }
-      b.setFlipX(b.dir < 0);
       if (time < b.invUntil) b.setTintFill(Math.floor(time / 60) % 2 ? 0xffffff : 0xff6070);
+      else if (b.attack && b.attack.warn && time < b.attack.at) b.setTint(Math.floor(time / 80) % 2 ? 0xffffff : (b.def.tint || 0xffffff));
       else b.setTint(b.def.tint || 0xffffff);
-      // 졸개 소환 (항상 구체로 만들 재료가 있도록)
-      const minions = this.enemies.getChildren().filter(e => e.state !== 'dead').length;
-      if (time > b.nextSpawn && minions < (rage ? 5 : 4)) {
-        b.nextSpawn = time + (rage ? 2400 : 3400);
-        const kind = b.def.minions[Math.floor(Math.random() * b.def.minions.length)];
-        const sx = DT.clamp(b.x + Phaser.Math.Between(-30, 30), 30, 290);
-        const e = this.spawnEnemy({ kind, x: sx, y: DT.ENEMY_DEFS[kind].fly ? b.y - 40 : b.y - 30 });
-        e.body.setVelocity(Phaser.Math.Between(-80, 80), -220);
-        this.time.delayedCall(450, () => { if (e.active && e.state === 'spawn') e.state = 'active'; });
-        this.emote(b, '!');
+
+      // 착지 충격파
+      if (b.airborne && onGround && body.velocity.y >= 0) {
+        b.airborne = false;
+        this.cameras.main.shake(140, 0.008);
+        DT.Audio.sfx('bump');
+        if (b.shockOnLand) {
+          [-1, 1].forEach(d => { const sh = this.fireShot('shock', b.x + d * 22, body.bottom - 5, d * 150, 0, { anim: 'shock_go', solidOnly: true, unbreakable: true, life: 2200 }); sh.isShock = true; });
+          b.shockOnLand = false;
+        }
       }
+      if (!onGround) b.airborne = true;
+
+      // 진행 중인 공격
+      const A = b.attack;
+      if (A) {
+        if (A.type === 'charge') {
+          if (time < A.at) body.setVelocityX(0);
+          else {
+            body.setVelocityX(A.dir * 270);
+            if (time > A.at + 100 && (body.blocked.left || body.blocked.right)) {
+              this.cameras.main.shake(200, 0.01); DT.Audio.sfx('bump');
+              body.setVelocity(-A.dir * 80, -160); b.attack = null; b.nextAttack = time + 1100;
+            } else if (time > A.at + 2400) b.attack = null;
+          }
+        } else if (time >= A.at && !A.fired) {
+          A.fired = true;
+          this.bossFire(A, rage);
+          b.attack = null;
+          b.nextAttack = time + Phaser.Math.Between(1700, 2600) * (rage ? 0.65 : 1);
+        } else if (time < A.at) body.setVelocityX(0);
+        b.setFlipX((A.dir || b.dir) < 0);
+      } else {
+        // 걷기 + 다음 공격 고르기
+        if (body.blocked.left) b.dir = 1; else if (body.blocked.right) b.dir = -1;
+        const spd = (b.def.kind === 'thief' ? 50 : 30) * (rage ? 1.5 : 1);
+        if (onGround) body.setVelocityX(b.dir * spd);
+        b.setFlipX(b.dir < 0);
+        if (onGround && time > b.nextAttack) this.bossChoose(time, rage);
+      }
+
+      // 졸개는 계속 조금씩 나옴 (구체 재료)
+      const minions = this.enemies.getChildren().filter(e => e.state !== 'dead').length;
+      if (time > b.nextSpawn && minions < 3) { b.nextSpawn = time + (rage ? 3200 : 4400); this.bossSummon(1); }
+    }
+
+    bossChoose(time, rage) {
+      const b = this.boss;
+      const MOVES = {
+        mush: ['jump', 'spores', 'charge', 'summon', 'spores'],
+        gob: ['rain', 'charge', 'jump', 'summon', 'rain'],
+        frog: ['bigjump', 'spores', 'jump', 'summon', 'bigjump'],
+        thief: ['charge', 'rain', 'spores', 'summon', 'charge']
+      }[b.def.kind] || ['jump', 'spores', 'charge', 'summon'];
+      let type = MOVES[Math.floor(Math.random() * MOVES.length)];
+      if (type === b.lastMove && Math.random() < 0.6) type = MOVES[(MOVES.indexOf(type) + 1) % MOVES.length];
+      b.lastMove = type;
+      const dir = this.player.x < b.x ? -1 : 1;
+      b.dir = dir;
+      const warn = type === 'jump' || type === 'bigjump' ? 350 : 650;
+      b.attack = { type, dir, at: time + warn, warn: true };
+      this.emote(b, '!');
+      DT.Audio.sfx('warn');
+      if (type === 'jump' || type === 'bigjump') {
+        this.time.delayedCall(warn, () => {
+          if (b.state !== 'active') return;
+          const big = type === 'bigjump';
+          b.body.setVelocityY(big ? -430 : -320);
+          b.body.setVelocityX(DT.clamp((this.player.x - b.x) * (big ? 1.4 : 1), -190, 190));
+          b.shockOnLand = true; b.airborne = true;
+        });
+        b.attack.fired = true; b.attack = null;
+        b.nextAttack = time + warn + Phaser.Math.Between(1800, 2600) * (rage ? 0.65 : 1);
+      }
+      if (type === 'charge') this.tweens.add({ targets: b, x: b.x - dir * 4, yoyo: true, repeat: 3, duration: 70 });
+    }
+
+    bossFire(A, rage) {
+      const b = this.boss, p = this.player;
+      if (A.type === 'spores') {
+        const n = rage ? 7 : 5, base = Math.atan2(p.y - b.y, p.x - b.x);
+        for (let i = 0; i < n; i++) {
+          const a = base + (i - (n - 1) / 2) * 0.28, sp = 105;
+          this.fireShot('spore', b.x + Math.cos(a) * 20, b.y + Math.sin(a) * 20 - 6, Math.cos(a) * sp, Math.sin(a) * sp, { tint: b.def.tint, life: 3200 });
+        }
+        DT.Audio.sfx('fire');
+      } else if (A.type === 'rain') {
+        const n = rage ? 6 : 4;
+        for (let i = 0; i < n; i++) {
+          const tx = i === 0 ? p.x : 30 + Math.random() * 260;
+          this.time.delayedCall(i * 140, () => {
+            if (b.state !== 'active') return;
+            this.lob('peach', b.x, b.y - 20, tx, 212, 1.0 + Math.random() * 0.3, { tint: b.def.kind === 'gob' ? 0x566c86 : 0xffffff, scale: 1.4 });
+            DT.Audio.sfx('throw');
+          });
+        }
+      } else if (A.type === 'summon') {
+        this.bossSummon(rage ? 3 : 2);
+      }
+    }
+
+    bossSummon(n) {
+      const b = this.boss;
+      for (let i = 0; i < n; i++) {
+        const kind = b.def.minions[Math.floor(Math.random() * b.def.minions.length)];
+        const sx = DT.clamp(b.x + Phaser.Math.Between(-40, 40), 30, 290);
+        const e = this.spawnEnemy({ kind, x: sx, y: DT.ENEMY_DEFS[kind].fly ? b.y - 40 : b.y - 30 });
+        e.body.setVelocity(Phaser.Math.Between(-90, 90), -230);
+        this.time.delayedCall(450, () => { if (e.active && e.state === 'spawn') e.state = 'active'; });
+      }
+      this.emote(b, '!');
     }
 
     bossHit(src) {
@@ -639,6 +772,7 @@
     bossDie() {
       const b = this.boss;
       b.state = 'dead';
+      this.eshots.clear(true, true);
       this.addScore(20000);
       DT.Audio.music(false);
       this.enemies.getChildren().slice().forEach(e => { if (e.state !== 'dead') this.killEnemy(e, e.x < b.x ? -1 : 1); });
@@ -664,7 +798,7 @@
       e.hp = e.def.hp; e.hits = 0; e.state = 'spawn'; e.angry = false;
       e.dir = spec.x < DT.W / 2 ? 1 : -1;
       e.nextAct = this.time.now + Phaser.Math.Between(1500, 3000);
-      e.knockUntil = 0; e.lastHitAt = 0; e.nextDecayAt = 0; e.nextTick = 0;
+      e.knockUntil = 0; e.lastHitAt = 0; e.nextDecayAt = 0; e.nextTick = 0; e.attackUntil = 0;
       e.shell = this.add.image(e.x, e.y, 'orb').setVisible(false).setDepth(7).setScale(DT.SPR);
       e.flyer = !!e.def.fly;
       if (e.flyer) { e.body.setAllowGravity(false); e.baseY = spec.y; e.phase = Math.random() * 6; }
@@ -762,8 +896,100 @@
       } else if (e.kind === 'snail') {
         if (onGround && !this.groundAhead(e)) e.dir *= -1;
         b.setVelocityX(e.dir * spd);
+      } else if (e.kind === 'dragon' || e.kind === 'monkey' || e.kind === 'puppy') {
+        if (this.specialAI(e, time, onGround, spd)) return;
+        if (onGround && !this.groundAhead(e)) e.dir *= -1;
+        b.setVelocityX(e.dir * spd);
       }
       e.setFlipX(e.dir < 0);
+    }
+
+    /* ── 몬스터 탄 ── */
+    fireShot(key, x, y, vx, vy, opt) {
+      opt = opt || {};
+      const sh = this.eshots.create(x, y, key, 0);
+      sh.isShot = true; sh.bornAt = this.time.now; sh.life = opt.life || 2600;
+      sh.solidOnly = !!opt.solidOnly; sh.unbreakable = !!opt.unbreakable;
+      sh.setDepth(14).setScale(opt.scale || 1);
+      if (opt.tint) sh.setTint(opt.tint);
+      sh.body.setAllowGravity(!!opt.gravity);
+      sh.body.setSize(sh.width * 0.8, sh.height * 0.8);
+      sh.body.setVelocity(vx, vy);
+      if (opt.anim) sh.play(opt.anim);
+      if (opt.spin) sh.body.setAngularVelocity(opt.spin);
+      sh.setFlipX(vx < 0);
+      return sh;
+    }
+    popShot(sh) {
+      if (!sh || !sh.active) return;
+      this.fxPx.explode(5, sh.x, sh.y);
+      sh.destroy();
+    }
+    // 포물선으로 (tx,ty)에 떨어지도록 던지기
+    lob(key, x, y, tx, ty, flight, opt) {
+      const g = T.GRAVITY, t = flight || 0.9;
+      const vx = DT.clamp((tx - x) / t, -170, 170);
+      const vy = Math.max(-400, (ty - y - 0.5 * g * t * t) / t);
+      return this.fireShot(key, x, y, vx, vy, Object.assign({ gravity: true, spin: vx < 0 ? -500 : 500 }, opt || {}));
+    }
+    updateShots(time) {
+      this.eshots.getChildren().slice().forEach(sh => {
+        if (!sh.active) return;
+        if (time - sh.bornAt > sh.life || sh.x < -20 || sh.x > DT.W + 20 || sh.y > this.mapH + 20) sh.destroy();
+        else if (sh.isShock && Math.abs(sh.body.velocity.x) < 5) this.popShot(sh);
+      });
+      this.poops.getChildren().slice().forEach(pp => {
+        if (!pp.active) return;
+        const age = time - pp.bornAt;
+        if (age > 7500) pp.setVisible(Math.floor(time / 100) % 2 === 0);
+        if (age > 9000 || (this.climb && pp.y > this.hazardY)) pp.destroy();
+      });
+    }
+
+    // 불뿜이 · 던짐원숭이 · 똥강아지 공격
+    specialAI(e, time, onGround, spd) {
+      const p = this.player, b = e.body;
+      const dx = p.x - e.x, dy = p.y - e.y;
+      if (time < e.attackUntil) { b.setVelocityX(0); return true; }
+      if (e.kind === 'dragon') {
+        if (onGround && time > e.nextAct && Math.abs(dy) < 26 && Math.abs(dx) < 220) {
+          e.dir = dx < 0 ? -1 : 1; e.setFlipX(e.dir < 0);
+          e.attackUntil = time + 700; e.nextAct = time + Phaser.Math.Between(2600, 4200) / (e.angry ? 1.4 : 1);
+          this.emote(e, '!');
+          e.setTintFill(0xffcd75); this.time.delayedCall(140, () => this.applyTint(e)); this.time.delayedCall(280, () => { if (e.active) e.setTintFill(0xffcd75); }); this.time.delayedCall(400, () => this.applyTint(e));
+          this.time.delayedCall(420, () => {
+            if (!e.active || e.state !== 'active') return;
+            this.fireShot('fireball', e.x + e.dir * 12, e.y + 1, e.dir * 135, 0, { anim: 'fireball_fly', solidOnly: true, scale: DT.SPR });
+            DT.Audio.sfx('fire');
+          });
+          return true;
+        }
+      } else if (e.kind === 'monkey') {
+        if (onGround && time > e.nextAct && Math.abs(dx) < 230 && Math.abs(dy) < 120) {
+          e.dir = dx < 0 ? -1 : 1; e.setFlipX(e.dir < 0);
+          e.attackUntil = time + 500; e.nextAct = time + Phaser.Math.Between(2400, 3800) / (e.angry ? 1.4 : 1);
+          e.anims.stop(); e.setFrame(1);
+          this.time.delayedCall(250, () => {
+            if (!e.active || e.state !== 'active') return;
+            this.lob('peach', e.x, e.y - 8, p.x + Phaser.Math.Between(-12, 12), p.y, 0.85 + Math.random() * 0.2, { scale: DT.SPR });
+            DT.Audio.sfx('throw');
+            e.play('monkey_walk');
+          });
+          return true;
+        }
+      } else if (e.kind === 'puppy') {
+        if (onGround && time > e.nextAct && this.poops.countActive(true) < 7) {
+          e.nextAct = time + Phaser.Math.Between(2600, 4000);
+          e.attackUntil = time + 300;
+          const pp = this.poops.create(e.x - e.dir * 9, e.y + 4, 'poop');
+          pp.isPoop = true; pp.bornAt = time; pp.setDepth(4).setScale(DT.SPR);
+          pp.body.setSize(8, 5).setOffset(0, 2);
+          DT.Audio.sfx('poot');
+          this.emote(e, '♥');
+          return true;
+        }
+      }
+      return false;
     }
 
     updateSealGauge(e, time) {
@@ -1357,6 +1583,7 @@
       this.waves.getChildren().slice().forEach(w => this.updateWave(w, time));
       this.updateFrags(time);
       this.updateBoss(time);
+      this.updateShots(time);
       if (this.climb) this.updateClimb(time, this.game.loop.delta);
       else this.syncScreenLayer();
 

@@ -47,20 +47,22 @@
     create() {
       DT.setupCamera(this);
       this.add.rectangle(0, 0, DT.W, DT.H, DT.C.ink, 0.8).setOrigin(0);
-      DT.panel(this, 40, 22, 240, 196, { border: DT.C.yellow, fill: DT.C.navy });
-      DT.ptext(this, 160, 30, 'SETTINGS', { ox: 0.5, tint: 0xffcd75, scale: 2 });
-      DT.text(this, 160, 52, '설정', { font: 'ko', size: 10, color: '#73eff7', stroke: null });
+      DT.panel(this, 40, 14, 240, 218, { border: DT.C.yellow, fill: DT.C.navy });
+      DT.ptext(this, 160, 20, 'SETTINGS', { ox: 0.5, tint: 0xffcd75, scale: 2 });
+      DT.text(this, 160, 42, '설정', { font: 'ko', size: 10, color: '#73eff7', stroke: null });
       const A = DT.Audio;
       this.items = [
         { label: '배경 음악', type: 'vol', get: () => A.bgmVol, set: (v) => { A.setBgmVol(v); } },
         { label: '효과음', type: 'vol', get: () => A.sfxVol, set: (v) => { A.setSfxVol(v); A.sfx('collect'); } },
         { label: '중국어 발음 듣기', type: 'bool', get: () => A.voiceOn, set: (v) => { A.setVoice(v); if (v) A.speak('你好'); } },
         { label: '화면 흔들림', type: 'bool', get: () => DT.store.get('dentree_shake', '1') === '1', set: (v) => DT.store.set('dentree_shake', v ? '1' : '0') },
+        { label: '스테이지 이야기', type: 'bool', get: () => DT.store.get('dentree_stagestory', '1') === '1', set: (v) => DT.store.set('dentree_stagestory', v ? '1' : '0') },
+        { label: '게임 끝내기 (로비로)', type: 'lobby' },
         { label: '돌아가기', type: 'close' }
       ];
       this.sel = 0;
       this.rows = this.items.map((it, i) => {
-        const y = 72 + i * 24;
+        const y = 60 + i * 20;
         const bg = this.add.rectangle(56, y - 9, 208, 19, 0xffffff, 0).setOrigin(0);
         const lab = DT.text(this, 64, y, it.label, { font: 'ko', size: 10, color: '#ffffff', stroke: null, ox: 0 });
         const val = DT.text(this, 256, y, '', { font: 'ko', size: 10, color: '#ffcd75', stroke: null, ox: 1 });
@@ -74,8 +76,8 @@
         });
         return { bg, lab, val, bar, y };
       });
-      DT.text(this, 160, 196, '↑↓ 고르기 · ←→ 바꾸기 · Z 결정  (모바일: ◀▶ 바꾸기 · 점프 다음 · 공격 결정)', { font: 'ko', size: 6, color: '#94b0c2', stroke: null });
-      DT.text(this, 160, 209, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#94b0c2', stroke: null });
+      DT.text(this, 160, 206, '↑↓ 고르기 · ←→ 바꾸기 · Z 결정  (모바일: ◀▶ 바꾸기 · 점프 다음 · 공격 결정)', { font: 'ko', size: 6, color: '#94b0c2', stroke: null });
+      DT.text(this, 160, 220, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#94b0c2', stroke: null });
       this.refresh();
     }
     refresh() {
@@ -89,6 +91,7 @@
           for (let k = 0; k < 10; k++) { r.bar.fillStyle(k < Math.round(v * 10) ? 0xa7f070 : 0x333c57, 1); r.bar.fillRect(170 + k * 8.6, r.y - 4, 7, 8); }
           r.val.setText('');
         } else if (it.type === 'bool') r.val.setText(it.get() ? '켜기' : '끄기');
+        else if (it.type === 'lobby') { const inLobby = this.under.indexOf('Title') >= 0; r.val.setText(inLobby ? '' : (this.confirmLobby ? '한 번 더!' : '▶')); r.lab.setAlpha(inLobby ? 0.4 : 1); }
         else r.val.setText('▶');
       });
     }
@@ -96,6 +99,17 @@
       const it = this.items[this.sel];
       if (it.type === 'bool') { it.set(!it.get()); DT.Audio.sfx('select'); }
       else if (it.type === 'close') this.close();
+      else if (it.type === 'lobby') {
+        if (this.under.indexOf('Title') >= 0) return;
+        if (!this.confirmLobby) { this.confirmLobby = true; DT.Audio.sfx('warn'); return; }
+        // 진행 중인 판을 끝내고 로비(타이틀)로
+        const g = this.game;
+        DT.Audio.music(false);
+        DT.Audio.setTempo(1);
+        g.scene.getScenes(false).forEach(sc => { const k = sc.sys.settings.key; if (k !== 'Settings' && k !== 'Title' && (g.scene.isActive(k) || g.scene.isPaused(k))) g.scene.stop(k); });
+        this.scene.stop();
+        g.scene.start('Title');
+      }
     }
     change(d) {
       const it = this.items[this.sel];
@@ -112,6 +126,7 @@
     update() {
       DT.Input.update();
       const I = DT.Input, n = this.items.length;
+      if (I.justDown('up') || I.justDown('down') || I.justDown('jump')) this.confirmLobby = false;
       if (I.justDown('up')) { this.sel = (this.sel + n - 1) % n; this.refresh(); DT.Audio.sfx('select'); }
       if (I.justDown('down') || I.justDown('jump')) { this.sel = (this.sel + 1) % n; this.refresh(); DT.Audio.sfx('select'); }
       if (I.justDown('left')) this.change(-1);

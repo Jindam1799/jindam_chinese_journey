@@ -399,7 +399,7 @@
     scene.cache.bitmapFont.add('pixel', data);
   }
 
-  DT.ENEMY_KINDS = ['mush', 'gob', 'thief', 'bird', 'frog', 'snail'];
+  DT.ENEMY_KINDS = ['mush', 'gob', 'thief', 'bird', 'frog', 'snail', 'dragon', 'monkey', 'puppy'];
 
   DT.Art = {
     build(scene) {
@@ -412,7 +412,13 @@
       addSheet(scene, 'seed_pong', g.seed.map(r => r.map(l => l.replace(/[GgD]/g, c => ({ G: 'Q', g: 'q', D: 'N' })[c]))), P);
       addSheet(scene, 'seed_doto', g.seed.map(r => r.map(l => l.replace(/[GgD]/g, c => ({ G: 'A', g: 'a', D: 'B' })[c]))), P);
       DT.ENEMY_KINDS.forEach(k => addSheet(scene, k, g[k], P));
-      ['heart', 'heartEmpty', 'leaf', 'star', 'spark', 'cursor', 'speaker'].forEach(k => addSheet(scene, k, g[k], P));
+      ['heart', 'heartEmpty', 'leaf', 'star', 'spark', 'cursor', 'speaker', 'fireball', 'peach', 'poop'].forEach(k => addSheet(scene, k, g[k], P));
+      // 보스 공격: 충격파 · 포자탄
+      addFrames(scene, 'shock', 16, 10, 2, (ctx, ox, f) => {
+        for (let x = 0; x < 16; x++) { const h = Math.round(3 + 6 * Math.sin((x / 15) * Math.PI) * (f ? 0.8 : 1)); rect(ctx, ox + x, 10 - h, 1, h, x % 3 === f ? '#ffffff' : '#ffcd75'); }
+        rect(ctx, ox, 9, 16, 1, '#ef7d57');
+      });
+      addSingle(scene, 'spore', 8, 8, (ctx) => { disc(ctx, 4, 4, 3, '#b55088'); disc(ctx, 3, 3, 1, '#ffd0f0'); px(ctx, 6, 5, '#7a2f6a'); });
       Object.keys(g.deco).forEach(k => addSheet(scene, 'deco_' + k, [g.deco[k]], P));
 
       addSingle(scene, 'orb', 20, 20, drawOrb);
@@ -547,6 +553,8 @@
         mk(k + '_walk', k, [0, 1], k === 'thief' || k === 'bird' ? 8 : 5);
         mk(k + '_struggle', k, [2, 3], 9);
       });
+      mk('fireball_fly', 'fireball', [0, 1], 12);
+      mk('shock_go', 'shock', [0, 1], 12);
       mk('fx_spark', 'spark', [0, 1, 2], 24, 0);
       mk('fx_ring', 'ring', [0, 1, 2, 3], 24, 0);
       mk('fx_puff', 'puff', [0, 1, 2, 3], 14, 0);

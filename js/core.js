@@ -3,7 +3,7 @@
   'use strict';
   const DT = (window.DT = window.DT || {});
 
-  DT.VERSION = '0.4.0';
+  DT.VERSION = '0.5.0';
   DT.W = 320;   // 논리 해상도 (16px 타일 20 x 15)
   DT.H = 240;
   DT.TILE = 16;
@@ -60,9 +60,12 @@
     thief: { name: '단어도둑',     hp: 4, speed: 52 },
     bird:  { name: '성조새',       hp: 2, speed: 42, fly: true },
     frog:  { name: '병음개구리',   hp: 3, speed: 30 },
-    snail: { name: '느림보달팽이', hp: 6, speed: 16 }
+    snail: { name: '느림보달팽이', hp: 6, speed: 16 },
+    dragon: { name: '불뿜이', hp: 3, speed: 26 },
+    monkey: { name: '던짐원숭이', hp: 3, speed: 30 },
+    puppy:  { name: '똥강아지', hp: 3, speed: 38 }
   };
-  DT.ENEMY_CODES = { m: 'mush', k: 'gob', t: 'thief', b: 'bird', f: 'frog', s: 'snail' };
+  DT.ENEMY_CODES = { m: 'mush', k: 'gob', t: 'thief', b: 'bird', f: 'frog', s: 'snail', d: 'dragon', o: 'monkey', p: 'puppy' };
 
   /* ── 로그라이크: 기본 능력치 (처음엔 느리고 사거리가 짧음) ── */
   DT.BASE_STATS = {
@@ -85,7 +88,6 @@
     { id: 'rapid',  name: '빠른 손',     desc: '공격 속도 +20%',        max: 4, icon: 'spark',  apply: (s) => { s.fireInterval *= 0.82; } },
     { id: 'speed',  name: '날쌘 발',     desc: '이동 속도 +12%',        max: 3, icon: 'petal',  apply: (s) => { s.move *= 1.12; } },
     { id: 'jump',   name: '구름 점프',   desc: '점프력 +8%',            max: 2, icon: 'bubble', apply: (s) => { s.jump *= 1.08; } },
-    { id: 'multi',  name: '쌍둥이 씨앗', desc: '한 번에 1발 더 발사',   max: 2, icon: 'seed2',  apply: (s) => { s.multishot += 1; } },
     { id: 'seal',   name: '단단한 봉인', desc: '봉인 유지 시간 +2초',   max: 2, icon: 'orb',    apply: (s) => { s.sealTime += 2000; } },
     { id: 'heart',  name: '튼튼한 마음', desc: '최대 체력 +1, 모두 회복', max: 2, icon: 'heart', apply: (s, run) => { s.maxHp += 1; run.hp = s.maxHp; } },
     { id: 'orb',    name: '씽씽 구체',   desc: '구체 속도·범위·지속 강화', max: 2, icon: 'ring',  apply: (s) => { s.orbSpeed *= 1.15; s.orbBounces += 1; } },
@@ -174,7 +176,7 @@
     cam.setRoundPixels(true);
     // 설정에서 '화면 흔들림'을 끄면 흔들림 없음
     const shake = cam.shake.bind(cam);
-    cam.shake = (d, i, f) => (DT.store.get('dentree_shake', '1') === '1' ? shake(d, i, f) : cam);
+    cam.shake = (d, i, f) => (DT.store.get('dentree_shake', '1') === '1' ? shake(Math.min(d, 220) * 0.8, (i || 0.005) * 0.45, f) : cam);
     return cam;
   };
 

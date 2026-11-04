@@ -10,7 +10,9 @@
     '그런데 어느 날 밤, 땅속 깊은 곳에서\n거대 혼동버섯이 깨어났어요!',
     '혼란의 포자가 퍼지자 덩어리들은 산산조각!\n몬스터들이 조각을 몽땅 가져가 버렸어요.',
     '그때, 말의 나무가 마지막 힘으로 씨앗 세 알을 떨어뜨렸어요.\n새싹 툭이, 물방울 퐁이, 도토리 도토가 태어났어요!',
-    '“씨앗탄으로 봉인하고, 몸으로 밀어서 날려 버리자!\n사라진 말의 조각을 모두 되찾을 거야!”'
+    '물방울 정령 퐁이는 리강의 맑은 물방울에서 깨어났어요.\n누구보다 빠르게 달리며 물방울탄을 일직선으로 쏘아요!',
+    '도토리 정령 도토는 황산 소나무의 도토리에서 깨어났어요.\n느릿느릿해도 힘이 세서 한 방이면 몬스터가 데굴데굴!',
+    '세 정령은 힘을 모아 길을 떠났어요.\n“봉인하고 차서 날려 버리자! 말의 조각을 모두 되찾자!”'
   ];
 
   class IntroScene extends Phaser.Scene {
@@ -24,7 +26,7 @@
       // 영화 같은 위아래 검은 띠 + 자막
       this.add.rectangle(0, 0, DT.W, 22, 0x000000).setOrigin(0).setDepth(50);
       this.add.rectangle(0, 192, DT.W, 48, 0x000000).setOrigin(0).setDepth(50);
-      this.sub = DT.text(this, 160, 214, '', { font: 'ko', size: 10, color: '#ffffff', stroke: null, align: 'center', depth: 51 });
+      this.sub = DT.text(this, 160, 214, '', { font: 'ko', size: 10, color: '#ffffff', stroke: null, align: 'center', depth: 51, wrap: 304 });
       this.sub.setLineSpacing(3);
       this.hint = DT.ptext(this, 6, 7, 'Z NEXT  SPACE SKIP', { tint: 0x566c86, depth: 51 });
       const skip = DT.ptext(this, 292, 7, 'SKIP >>', { ox: 1, tint: 0xffcd75, depth: 52 });
@@ -178,8 +180,46 @@
           } });
       });
     }
-    /* ── 컷 6: 결심! 봉인 시범 ── */
+    /* ── 컷 6: 퐁이 소개 (리강) ── */
     shot5() {
+      this.add2(this.add.image(0, 0, 'bg_guilin').setOrigin(0));
+      const pong = this.add2(this.add.sprite(-20, 172, 'hero_pong', 0).setScale(2.6));
+      pong.play('pong_run');
+      this.tweens.add({ targets: pong, x: 90, duration: 700, ease: 'Quad.easeOut', onComplete: () => {
+        pong.play('pong_idle');
+        for (let i = 0; i < 3; i++) this.time.delayedCall(250 + i * 260, () => {
+          pong.setFrame(7); DT.Audio.sfx('shoot', 'line');
+          const d = this.add2(this.add.image(108, 174, 'seed_pong').setScale(2.4, 1.6));
+          this.tweens.add({ targets: d, x: 360, duration: 500, onComplete: () => d.destroy() });
+        });
+      } });
+      const drops = this.add.particles(0, 0, 'bubble', { x: { min: 0, max: 320 }, y: 200, speedY: { min: -40, max: -15 }, lifespan: 2500, frequency: 120, alpha: { start: 1, end: 0 } });
+      this.add2(drops);
+      this.add2(DT.text(this, 220, 120, '퐁이', { font: 'ko', size: 22, color: '#73eff7', strokeThickness: 4 }));
+      this.add2(DT.text(this, 220, 144, '빠르다! 일직선!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+    }
+    /* ── 컷 7: 도토 소개 (황산) ── */
+    shot6() {
+      this.add2(this.add.image(0, 0, 'bg_huangshan').setOrigin(0));
+      const doto = this.add2(this.add.sprite(110, 172, 'hero_doto', 0).setScale(2.8));
+      doto.play('doto_idle');
+      const rock = this.add2(this.add.sprite(230, 172, 'snail', 0).setScale(2.6).setFlipX(true));
+      rock.play('snail_walk');
+      this.time.delayedCall(700, () => {
+        doto.setFrame(13); DT.Audio.sfx('kick'); this.cameras.main.shake(260, 0.01);
+        const a = this.add2(this.add.image(130, 176, 'seed_doto').setScale(2.4));
+        this.tweens.add({ targets: a, x: 222, angle: 720, duration: 450, onComplete: () => {
+          a.destroy(); DT.Audio.sfx('burst');
+          this.tweens.add({ targets: rock, x: 380, y: 80, angle: 900, duration: 900 });
+          const r = this.add2(this.add.sprite(226, 170, 'ring', 0).setTint(0xffcd75).setScale(2)); r.play('fx_ring');
+          doto.play('doto_win');
+        } });
+      });
+      this.add2(DT.text(this, 150, 92, '도토', { font: 'ko', size: 22, color: '#ffcd75', strokeThickness: 4 }));
+      this.add2(DT.text(this, 150, 116, '느려도 한 방은 최고!', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+    }
+    /* ── 컷 8: 결심! 봉인 시범 ── */
+    shot7() {
       this.add2(this.add.image(0, 0, 'bg_guilin').setOrigin(0));
       const hero = this.add2(this.add.sprite(80, 168, 'hero_tuk', 0).setScale(2.4));
       hero.play('tuk_idle');

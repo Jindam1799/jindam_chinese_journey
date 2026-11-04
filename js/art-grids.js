@@ -214,6 +214,82 @@
   const snailS1 = rep(SNAIL, { 7: 'KOYOOYOOYOKcKKcK', 9: 'KOYOOOOYOOKcRRcK' });
   const snailS2 = rep(snailS1, { 13: '.KccccccccccccK.', 14: '..KKKKKKKKKKKK..' });
 
+  /* ───────── 불뿜이 (입에서 불을 뿜는 꼬마 용) ───────── */
+  const DRAGON = [
+    E,
+    '.....KK..KK.....',
+    '....KYK..KYK....',
+    '...KKRRKKRRKK...',
+    '..KRRRRRRRRRRK..',
+    '..KRWKRRRRWKRK..',
+    '.KRRKKRRRRKKRRK.',
+    'KORRRRRRRRRRRROK',
+    'KOOKKKRRRRKKKOOK',
+    '.KOOOOKKKKOOOOK.',
+    '..KRRRRRRRRRRK..',
+    '.KYKRYYYYYYRKYK.',
+    '.KYKRYYYYYYRKYK.',
+    '..KKRRRRRRRRKK..',
+    '...KRK....KRK...',
+    E
+  ];
+  const dragonB = rep(DRAGON, { 14: '..KRK......KRK..' });
+  const DRAGON_X = { 5: '..KRKRKRRKRKRK..', 6: '.KRRRKRRRRKRRRK.', 8: 'KOOKRRRRRRRRKOOK' };
+  const dragonS1 = rep(DRAGON, DRAGON_X);
+  const dragonS2 = rep(dragonB, DRAGON_X);
+
+  /* ───────── 던짐원숭이 (복숭아를 포물선으로 던짐) ───────── */
+  const MONKEY = [
+    E,
+    '.....KKKKKK.....',
+    '...KKBBBBBBKK...',
+    '..KBBBBBBBBBBK..',
+    '.KcKBccccccBKcK.',
+    '.KcKcWKccWKcKcK.',
+    '..KBcKKccKKcBK..',
+    '..KBcccPPcccBK..',
+    '...KBccKKccBK...',
+    '....KKBBBBKK....',
+    '...KBBBBBBBBK...',
+    '..KcKBBBBBBKcK..',
+    '..KcKBBccBBKcK..',
+    '...K.KBBBBK.K...',
+    '....KBK..KBK....',
+    E
+  ];
+  const monkeyB = rep(MONKEY, { 11: '..KBKBBBBBBKcK..', 12: '.KcKKBBccBBK.KK.', 14: '...KBK....KBK...' });
+  const MONKEY_X = { 5: '.KcKcKcccKcKKcK.', 6: '..KBccKccKccBK..', 8: '...KBcKKKKcBK...' };
+  const monkeyS1 = rep(MONKEY, MONKEY_X);
+  const monkeyS2 = rep(monkeyB, MONKEY_X);
+
+  /* ───────── 똥강아지 (지나가며 똥을 누고 감) ───────── */
+  const PUPPY = [
+    E, E,
+    '..KK........KK..',
+    '.KBBK......KBBK.',
+    '.KBBKKKKKKKKBBK.',
+    '..KKccccccccKK..',
+    '..KcWKccccWKcK..',
+    '..KcKKccccKKcK..',
+    '..KccccKKcccc K.'.replace(' ', 'c'),
+    '...KccRRRRccK...',
+    '....KKKKKKKK....',
+    '..KBBccccccBBK..',
+    '.KBBcccccccccBK.',
+    '.KBBBBBBBBBBBBKK',
+    '..KcK.KK.KK.KcK.',
+    E
+  ];
+  const puppyB = rep(PUPPY, { 14: '..KcKK......KKcK' });
+  const PUPPY_X = { 6: '..KcKcKccKcKcK..', 7: '..KccKccccKccK..', 9: '...KcRRRRRRcK...' };
+  const puppyS1 = rep(PUPPY, PUPPY_X);
+  const puppyS2 = rep(puppyB, PUPPY_X);
+
+  /* ───────── 몬스터 탄 ───────── */
+  const FIREBALL = [['..YYOO..', '.YWWYOOR', 'YWWWYYOR', '.YWWYOOR', '..YYOO..'], ['...YOO..', '.YWYYOR.', 'YWWWYOOR', '.YWYYOR.', '...YOO..']];
+  const PEACH = ['..GG...', '.KPPGK.', 'KPPPPPK', 'KPWPPPK', 'KPPPPRK', '.KPPRK.', '..KKK..'];
+  const POOP = ['....K....', '...KBK...', '..KBBBK..', '..KBBBBK.', '.KBWBBWBK', '.KBBKKBBK', 'KBBBBBBBBK'.slice(0, 9)];
+
   /* ───────── 소품 ───────── */
   const SEED = [
     '..KKKK..',
@@ -271,6 +347,10 @@
     bird: [BIRD, birdB, birdS1, birdS2],
     frog: [FROG, frogB, frogS1, frogS2],
     snail: [SNAIL, snailB, snailS1, snailS2],
+    dragon: [DRAGON, dragonB, dragonS1, dragonS2],
+    monkey: [MONKEY, monkeyB, monkeyS1, monkeyS2],
+    puppy: [PUPPY, puppyB, puppyS1, puppyS2],
+    fireball: FIREBALL, peach: [PEACH], poop: [POOP],
     seed: [SEED], heart: [HEART], heartEmpty: [HEART_EMPTY], leaf: [LEAF], star: [STAR],
     spark: SPARK, cursor: [CURSOR], speaker: [SPEAKER], deco: DECO
   };

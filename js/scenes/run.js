@@ -73,8 +73,8 @@
       const run = DT.newRun(h.id);
       const seen = DT.store.get('dentree_story', '0') === '1';
       this.time.delayedCall(500, () => {
-        if (seen) this.scene.start('Game', { run });
-        else this.scene.start('Intro', { next: 'Game', data: { run } });
+        if (seen) DT.toStage(this, run);
+        else this.scene.start('Intro', { next: 'StageStory', data: { run } });
       });
     }
     update() {
@@ -171,7 +171,7 @@
       this.time.delayedCall(700, () => { if (this.picks > 0) this.deal(); else this.finish(); });
     }
     finish() {
-      this.scene.start('Game', { run: this.run });
+      DT.toStage(this, this.run);
     }
     update() {
       DT.Input.update();

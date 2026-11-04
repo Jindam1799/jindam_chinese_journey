@@ -182,6 +182,11 @@
     sparkle() { arp('pluck', [84, 88, 91, 96, 100], 0.05, 0.1); },
     crumble() { noise({ d: 0.18, v: 0.2, f: 1200, f2: 200 }); tone({ f: 180, f2: 90, d: 0.12, v: 0.1, type: 'square' }); },
     levelup() { arp('lead', [72, 79, 84, 88, 91], 0.06, 0.1, 0.12); arp('pluck', [96, 100, 103], 0.05, 0.07); },
+    fire() { noise({ d: 0.3, v: 0.22, f: 900, f2: 3000, filter: 'bandpass' }); tone({ f: 220, f2: 110, d: 0.25, v: 0.08, type: 'sawtooth' }); },
+    throw() { noise({ d: 0.12, v: 0.12, f: 600, f2: 2400, filter: 'bandpass' }); tone({ f: 500, f2: 900, d: 0.08, v: 0.06, type: 'triangle' }); },
+    poot() { tone({ f: 140, f2: 70, d: 0.22, v: 0.16, type: 'sawtooth', vib: 22 }); noise({ d: 0.12, v: 0.08, f: 300 }); },
+    squish() { noise({ d: 0.15, v: 0.2, f: 500, f2: 150 }); tone({ f: 260, f2: 90, d: 0.18, v: 0.12, type: 'sine', vib: 30 }); },
+    warn() { tone({ f: 880, d: 0.06, v: 0.1 }); tone({ f: 660, d: 0.08, t: 0.08, v: 0.1 }); },
     bosshit() { noise({ d: 0.4, v: 0.35, f: 2500, f2: 100 }); tone({ f: 90, f2: 30, d: 0.4, v: 0.3, type: 'square' }); arp('lead', [79, 72], 0.08, 0.1); }
   };
 
