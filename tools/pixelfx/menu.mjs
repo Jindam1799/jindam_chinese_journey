@@ -11,6 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PFX = join(ROOT, "third_party", "pixelfx");
 const CFG = join(ROOT, "tools", "pixelfx", "fx.config.json");
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+rl.on("close", () => process.exit(0));
 const run = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, stdio: "inherit" });
 const load = () => JSON.parse(readFileSync(CFG, "utf8"));
 const store = (c) => writeFileSync(CFG, JSON.stringify(c, null, 2) + "\n");
