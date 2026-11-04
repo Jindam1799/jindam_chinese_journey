@@ -996,6 +996,7 @@
         case 'active': this.enemyAI(e, time); this.updateSealGauge(e, time); break;
         case 'sealed': this.updateSealed(e, time); break;
         case 'rolling': this.updateRolling(e, time); break;
+        case 'flying': this.updateFlying(e, time); break;
         default: break;
       }
     }
@@ -1128,6 +1129,15 @@
       this.fxPx.explode(5, sh.x, sh.y);
       sh.destroy();
     }
+    sweepPoop(pp) {
+      if (!pp.active) return;
+      this.fxDust.explode(6, pp.x, pp.y);
+      this.fxStar.explode(2, pp.x, pp.y - 4);
+      this.popText(pp.x, pp.y - 10, '깨끗!', 0xa7f070);
+      this.addScore(30);
+      DT.Audio.sfx('collect');
+      pp.destroy();
+    }
     // 포물선으로 (tx,ty)에 떨어지도록 던지기
     lob(key, x, y, tx, ty, flight, opt) {
       const g = T.GRAVITY, t = flight || 0.9;
@@ -1141,8 +1151,11 @@
         if (time - sh.bornAt > sh.life || sh.x < -20 || sh.x > DT.W + 20 || sh.y > this.mapH + 20) sh.destroy();
         else if (sh.isShock && Math.abs(sh.body.velocity.x) < 5) this.popShot(sh);
       });
+      // 굴러가는 구체·퐁이 물결이 지나가면 똥이 깨끗이 쓸려 나감
+      const sweepers = this.enemies.getChildren().filter(e => e.active && (e.state === 'rolling' || e.state === 'flying')).concat(this.waves.getChildren().filter(w => w.active));
       this.poops.getChildren().slice().forEach(pp => {
         if (!pp.active) return;
+        if (sweepers.some(o => Math.abs(o.x - pp.x) < 16 && Math.abs(o.y - pp.y) < 16)) { this.sweepPoop(pp); return; }
         const age = time - pp.bornAt;
         if (age > 7500) pp.setVisible(Math.floor(time / 100) % 2 === 0);
         if (age > 9000 || (this.climb && pp.y > this.hazardY)) pp.destroy();
@@ -1362,30 +1375,45 @@
       DT.Audio.sfx('kill', n);
     }
 
-    // 도토: 구체가 그 자리에서 펑! 범위 안의 적을 모두 연쇄 처치
+    // 도토: 차면 앞으로 포물선을 그리며 날아가다가 땅·벽·몬스터에 닿으면 펑! 범위 안의 적을 모두 연쇄 처치
     blastOrb(e, dir) {
       if (e.state !== 'sealed') return;
-      e.state = 'blasting'; e.combo = 1; e.rollDir = dir;
-      e.body.setVelocity(0, 0);
-      this.tweens.add({ targets: e.shell, scale: DT.SPR * 1.5, duration: 140, yoyo: true });
-      e.shell.setTintFill(0xffffff);
+      e.state = 'flying'; e.combo = 1; e.rollDir = dir; e.flyAt = this.time.now;
+      e.body.setAllowGravity(true);
+      e.body.setVelocity(dir * (85 + this.S.orbSpeed * 0.1), -150);   // 살짝 포물선으로 2~3칸 앞에 떨어지며 펑
+      e.shell.setAlpha(1);
       DT.Audio.sfx('kick');
-      this.time.delayedCall(150, () => {
-        if (!e.active) return;
-        const R = 40 + (this.S.orbBounces - 3) * 12;
-        this.ring(e.x, e.y, 0xffcd75, R / 14);
-        this.cameras.main.shake(220, 0.009);
-        this.cameras.main.flash(80, 255, 236, 180);
-        this.hitStop(80);
-        const targets = this.enemies.getChildren().filter(o => o !== e && o.active &&
-          (o.state === 'active' || o.state === 'sealed' || o.state === 'spawn') && Phaser.Math.Distance.Between(o.x, o.y, e.x, e.y) <= R);
-        targets.sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, e.x, e.y) - Phaser.Math.Distance.Between(b.x, b.y, e.x, e.y));
-        targets.forEach((o, i) => this.time.delayedCall(i * 70, () => { if (o.active && o.state !== 'dead') this.chainKill(e, o); }));
-        if (this.boss && this.boss.state === 'active' && Phaser.Math.Distance.Between(this.boss.x, this.boss.y, e.x, e.y) <= R + 26) this.bossHit(e);
-        e.state = 'rolling';
-        e.shell.clearTint();
-        this.burstOrb(e);
-      });
+    }
+    updateFlying(e, time) {
+      const b = e.body, age = time - e.flyAt;
+      e.shell.rotation += e.rollDir * 0.3; e.rotation = e.shell.rotation;
+      if (time > (e.nextTrail || 0)) { this.fxLeaf.emitParticleAt(e.x, e.y, 1); e.nextTrail = time + 40; }
+      const landed = age > 160 && (b.blocked.down || b.touching.down || !!e.onSlope);
+      const wall = b.blocked.left || b.blocked.right;
+      const hitEnemy = this.enemies.getChildren().some(o => o !== e && o.active && (o.state === 'active' || o.state === 'sealed' || o.state === 'spawn') &&
+        Math.abs(o.x - e.x) < 16 && Math.abs(o.y - e.y) < 16);
+      const hitBoss = this.boss && this.boss.state === 'active' && Math.abs(this.boss.x - e.x) < 30 && Math.abs(this.boss.y - e.y) < 34;
+      if (landed || wall || hitEnemy || hitBoss || age > 1200) this.explodeBlast(e);
+    }
+    explodeBlast(e) {
+      if (e.state !== 'flying') return;
+      e.state = 'blasting';
+      e.body.setVelocity(0, 0);
+      e.shell.setTintFill(0xffffff);
+      const R = 40 + (this.S.orbBounces - 3) * 12;
+      this.ring(e.x, e.y, 0xffcd75, R / 14);
+      this.cameras.main.shake(220, 0.009);
+      this.cameras.main.flash(80, 255, 236, 180);
+      this.hitStop(80);
+      const targets = this.enemies.getChildren().filter(o => o !== e && o.active &&
+        (o.state === 'active' || o.state === 'sealed' || o.state === 'spawn') && Phaser.Math.Distance.Between(o.x, o.y, e.x, e.y) <= R);
+      targets.sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, e.x, e.y) - Phaser.Math.Distance.Between(b.x, b.y, e.x, e.y));
+      targets.forEach((o, i) => this.time.delayedCall(i * 70, () => { if (o.active && o.state !== 'dead') this.chainKill(e, o); }));
+      this.poops.getChildren().slice().forEach(pp => { if (pp.active && Phaser.Math.Distance.Between(pp.x, pp.y, e.x, e.y) <= R) this.sweepPoop(pp); });
+      if (this.boss && this.boss.state === 'active' && Phaser.Math.Distance.Between(this.boss.x, this.boss.y, e.x, e.y) <= R + 26) this.bossHit(e);
+      e.state = 'rolling';
+      e.shell.clearTint();
+      this.burstOrb(e);
     }
 
     // 퐁이: 구체가 터져 물결이 되어 바닥을 따라 흘러감
