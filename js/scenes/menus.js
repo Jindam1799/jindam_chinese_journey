@@ -50,10 +50,10 @@
       });
 
       // 메뉴: 게임 시작 · 스토리 · 명예의 전당 · 설정
-      this.menu = [['게임 시작', 'start'], ['캐릭터 도감', 'dexHero'], ['몬스터 도감', 'dexMon'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
-        const x = 34 + i * 63;
-        const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 10, color: '#ffffff', strokeThickness: 3 });
-        this.add.zone(x, 182, 60, 18).setInteractive({ useHandCursor: true }).on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.sel = i; this.pick(); });
+      this.menu = [['게임 시작', 'start'], ['도감', 'dex'], ['명예의 전당', 'hall'], ['설정', 'settings']].map((m, i) => {
+        const x = 52 + i * 72;
+        const t = DT.text(this, x, 182, m[0], { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 });
+        this.add.zone(x, 182, 66, 18).setInteractive({ useHandCursor: true }).on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); this.sel = i; this.pick(); });
         return { t, act: m[1], x };
       });
       this.sel = 0;
@@ -78,7 +78,7 @@
     pick() {
       const a = this.menu[this.sel].act;
       if (a === 'start') this.begin(false);
-      else if (a === 'dexHero' || a === 'dexMon') { DT.Audio.sfx('select'); this.scene.start('Dex', { tab: a === 'dexHero' ? 'hero' : 'mon' }); }
+      else if (a === 'dex') { DT.Audio.sfx('select'); this.scene.start('Dex', { tab: 'hero' }); }
       else if (a === 'hall') { DT.Audio.sfx('select'); this.scene.start('Hall', { next: 'Title' }); }
       else if (a === 'settings') { DT.Audio.unlock(); DT.openSettings(); }
     }

@@ -269,8 +269,14 @@
       const L = (o) => { this.layer.add(o); return o; };
       const list = this.entries();
       this.sel = DT.clamp(this.sel, 0, list.length - 1);
-      L(DT.ptext(this, 160, 6, this.tab === 'hero' ? 'CHARACTERS' : 'MONSTERS', { ox: 0.5, tint: 0xffcd75, scale: 2 }));
-      L(DT.text(this, 160, 28, this.tab === 'hero' ? '캐릭터 도감' : '몬스터 도감', { font: 'ko', size: 11, color: '#ffffff', strokeThickness: 3 }));
+      L(DT.text(this, 160, 12, '도감', { font: 'ko', size: 16, color: '#ffcd75', strokeThickness: 4 }));
+      // 탭: 캐릭터 / 몬스터 (점프 버튼 또는 탭을 눌러 전환)
+      [['hero', '캐릭터', 120], ['mon', '몬스터', 200]].forEach(([k, label, x]) => {
+        const on = this.tab === k;
+        L(this.add.rectangle(x, 30, 64, 14, on ? 0xffcd75 : 0x1a1c2c, on ? 1 : 0.7));
+        L(DT.text(this, x, 30, label, { font: 'ko', size: 9, color: on ? '#1a1c2c' : '#ffffff', stroke: null }));
+        L(this.add.zone(x, 30, 64, 14).setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (this.tab !== k) { this.tab = k; this.sel = 0; DT.Audio.sfx('collect'); this.build(); } }));
+      });
       // 썸네일 줄
       const n = list.length, w = this.tab === 'hero' ? 40 : 22, x0 = 160 - (n * w) / 2 + w / 2;
       list.forEach((e, i) => {
@@ -315,7 +321,7 @@
         L(DT.text(this, 118, 116, b.desc, { font: 'ko', size: 9, color: '#ffffff', stroke: null, ox: 0, oy: 0, wrap: 180, align: 'left' }).setOrigin(0, 0));
         L(DT.text(this, 118, 160, '약점: 졸개를 봉인한 구체로만 공격할 수 있어요!', { font: 'ko', size: 8, color: '#a7f070', stroke: null, ox: 0, wrap: 180, align: 'left' }));
       }
-      L(DT.text(this, 160, 218, '←→ 넘기기 · 점프(SPACE) ' + (this.tab === 'hero' ? '몬스터 도감' : '캐릭터 도감') + ' · 공격(Z) 돌아가기', { font: 'ko', size: 8, color: '#ffffff', strokeThickness: 2 }));
+      L(DT.text(this, 160, 218, '←→ 넘기기 · 점프(SPACE) ' + (this.tab === 'hero' ? '몬스터 보기' : '캐릭터 보기') + ' · 공격(Z) 돌아가기', { font: 'ko', size: 8, color: '#ffffff', strokeThickness: 2 }));
       L(DT.text(this, 160, 232, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#e8f4ff', strokeThickness: 2 }));
     }
     update() {
