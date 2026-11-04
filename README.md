@@ -1,0 +1,65 @@
+# 덩어리 숲: 사라진 말의 조각 (v0.3.0)
+
+진담중국어의 2D 도트 아케이드 중국어 교육 웹게임입니다. Phaser 3.90 기반이며, GitHub Pages에 그대로 올릴 수 있습니다.
+캐릭터, 몬스터, 배경, 효과음은 모두 코드로 만듭니다. 이펙트 일부는 pixelfx로 만든 스프라이트 시트입니다.
+
+## 게임 구성
+- **4개 월드 × 8스테이지 = 32스테이지**입니다. 각 월드의 x-8은 보스전입니다.
+  - 1 구이린(桂林) 산수 · 2 장자제(张家界) · 3 주자이거우(九寨沟) · 4 황산(黄山)
+- **주인공 3명**
+  - 툭이: 포물선 씨앗탄을 쏘고, 구체가 굴러갑니다.
+  - 퐁이: 일직선 물방울탄을 쏘고, 구체가 물결이 되어 흐릅니다.
+  - 도토: 굴러가는 도토리탄을 쏘고, 구체가 터지면서 주변 적까지 처치합니다.
+- **몬스터 6종**: 혼동버섯, 먹깨비, 단어도둑, 성조새, 병음개구리, 느림보달팽이
+- **로그라이크 성장**: 처음에는 공격이 느리고 사거리가 짧습니다. 스테이지를 클리어할 때마다 파워업 카드를 1장 고릅니다(퀴즈를 한 번에 맞히면 2장).
+- **중국어**: 처치한 적이 한자 조각을 떨어뜨리고, 조각을 모아 덩어리를 완성하면 보상이 있습니다. 월드마다 9개 덩어리, 모두 36개입니다. 클리어 후 퀴즈는 자동으로 출제됩니다.
+
+## 조작
+| PC | 모바일 (가로 전용) | 동작 |
+|---|---|---|
+| ← → | ◀ ▶ | 이동 / 구체에 붙어서 밀기 |
+| Space | 점프 | 점프 (구체 위에 올라설 수 있음) |
+| Z | 공격 | 씨앗탄 · **구체 옆에서 누르면 발차기/주먹, 공중이면 드롭킥** |
+| P / Esc · M | ♪ | 일시정지 · 소리 |
+
+- 적에게 씨앗탄을 여러 번 맞히면 구체에 봉인됩니다.
+- 구체는 씨앗탄으로는 날아가지 않습니다(맞히면 봉인 시간만 늘어남). **직접 다가가서 차야** 날아갑니다.
+- 보스에게는 씨앗탄이 통하지 않습니다. 보스가 소환하는 졸개를 봉인해서 그 구체를 차서 맞혀야 합니다.
+
+## 파일 구조
+```
+index.html                 로딩·오류 화면, 터치 버튼, 회전 안내, 스크립트 로더
+data/game-data.json        어휘 · 스테이지(맵·보스) — tools/build-stages.cjs 가 생성
+js/core.js                 TUNING(밸런스), 주인공·파워업·몬스터 정의, 퀴즈 자동 출제, 배경 파티클
+js/art-grids.js · art.js   도트 그림, 테마별 배경·타일, 픽셀 폰트, 애니메이션
+js/fx.js                   pixelfx 스프라이트 시트 로더 (DT.FX.play)
+js/scenes/*.js             타이틀 · 주인공 선택 · 스토리 · 게임 · 퀴즈 · 파워업 · 게임오버 · 엔딩
+assets/fx/                 pixelfx에서 내보낸 PNG + JSON + manifest.json
+third_party/pixelfx/       pixelfx v0.3.0 (고정, 수정 금지)
+tools/pixelfx/             fetch(고정 버전 받기) · export(시트 내보내기) · menu(대화형 메뉴) · fx.config.json
+.claude/skills/pixelfx/    Claude가 이 저장소에서 항상 쓰는 pixelfx 스킬
+THIRD_PARTY_NOTICES.md     MIT 크레딧 등 서드파티 고지
+```
+
+## 명령어 (Node 18+)
+```bash
+npm run serve        # http://localhost:8000 에서 실행
+npm run fx           # pixelfx 메뉴: 검색 → 미리보기 → 게임에 추가 → 내보내기
+npm run fx:export    # fx.config.json 의 이펙트를 전부 assets/fx 로 내보내기
+npm run fx:list -- coin           # 이펙트 검색
+npm run fx:fetch     # pixelfx를 고정 커밋으로 다시 받기 (Patch Pixel 폰트 제외)
+node tools/build-stages.cjs && npm run data   # 스테이지·어휘 다시 생성 + 내장 데이터 갱신
+```
+
+### pixelfx 이펙트 추가하기
+1. `npm run fx` → 1) 검색 → 2) 미리보기를 고릅니다. 그러면 `records/<id>/contact.png`가 생깁니다.
+2. 3) 추가를 골라 key(게임 안 이름), fps, 옵션(팔레트 등)을 입력합니다. 시트를 자동으로 내보내고 manifest도 갱신합니다.
+3. 게임 코드에서 `DT.FX.play(this, '<key>', x, y, { flip, scale })`로 재생합니다.
+
+## GitHub Pages 배포
+저장소 루트에 그대로 올리고 Settings → Pages에서 브랜치를 지정하면 됩니다. 모든 경로는 상대경로입니다.
+`third_party/`, `tools/`, `.claude/`는 배포에 필요하지 않지만, 함께 올려도 문제없습니다.
+
+## 라이선스 · 크레딧
+서드파티 고지는 `THIRD_PARTY_NOTICES.md`에 있습니다(pixelfx MIT, Phaser MIT, Google Fonts OFL).
+pixelfx 갤러리의 Patch Pixel 폰트는 MIT가 아니라서 포함하지 않았고 사용하지 않습니다.

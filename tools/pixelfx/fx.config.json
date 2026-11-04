@@ -1,0 +1,12 @@
+{
+  "_comment": "게임에서 쓰는 pixelfx 이펙트 목록. key = 게임 안 이름, id = pixelfx 이펙트(category/name) 또는 fx-src/ 안의 자작 이펙트. 수정 후 npm run fx:export",
+  "outDir": "assets/fx",
+  "effects": [
+    { "key": "poof", "id": "spawn/poof", "fps": 15,
+      "options": { "stars": ["#ffcd75", "#fff3a6", "#ffffff"] },
+      "use": "구체 폭발·몬스터 처치" },
+    { "key": "collect", "id": "pickups/collect-burst", "fps": 15,
+      "options": { "palette": ["#1a1c2c", "#257179", "#38b764", "#7bd389", "#a7f070", "#d8ffb0", "#f4ffe8", "#ffffff"] },
+      "use": "덩어리 완성(CHUNK GET)" }
+  ]
+}

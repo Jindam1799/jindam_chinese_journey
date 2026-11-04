@@ -1,0 +1,40 @@
+{
+ "generator": "tools/pixelfx/export.mjs",
+ "pixelfx": "a84159688af3ca37a4be05a0d422b94451b2e24e",
+ "effects": {
+  "poof": {
+   "id": "spawn/poof",
+   "png": "poof.png",
+   "json": "poof.json",
+   "frames": 25,
+   "fps": 15,
+   "loop": false,
+   "frameSize": [
+    112,
+    92
+   ],
+   "pivot": [
+    56,
+    80
+   ],
+   "use": "구체 폭발·몬스터 처치"
+  },
+  "collect": {
+   "id": "pickups/collect-burst",
+   "png": "collect.png",
+   "json": "collect.json",
+   "frames": 21,
+   "fps": 15,
+   "loop": false,
+   "frameSize": [
+    112,
+    108
+   ],
+   "pivot": [
+    56,
+    94
+   ],
+   "use": "덩어리 완성(CHUNK GET)"
+  }
+ }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "dentree-forest",
+  "version": "0.3.0",
+  "private": true,
+  "description": "덩어리 숲: 사라진 말의 조각 — Phaser 3 중국어 교육 아케이드 게임",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "data": "node tools/build-default-data.cjs",
+    "fx": "node tools/pixelfx/menu.mjs",
+    "fx:export": "node tools/pixelfx/export.mjs",
+    "fx:list": "node third_party/pixelfx/tools/list.mjs",
+    "fx:render": "node third_party/pixelfx/tools/render.mjs",
+    "fx:fetch": "bash tools/pixelfx/fetch-pixelfx.sh"
+  },
+  "engines": { "node": ">=18" }
+}

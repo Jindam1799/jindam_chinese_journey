@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1a1c2c">
+<title>덩어리 숲: 사라진 말의 조각</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #0e0f1a; overflow: hidden; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    font-family: "Do Hyeon", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #f4f4f4; }
+  #game { position: fixed; inset: 0; }
+  /* 모바일은 가로 전용: 좌우 여백에 버튼 배치 */
+  @media (orientation: landscape) { body.touch-on #game { left: 128px; right: 128px; } }
+  #rotate { position: fixed; inset: 0; z-index: 25; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: #1a1c2c; text-align: center; padding: 24px; }
+  #rotate .phone { width: 46px; height: 78px; border: 4px solid #a7f070; border-radius: 8px; position: relative; animation: turn 1.8s ease-in-out infinite; }
+  #rotate .phone::after { content: ''; position: absolute; left: 50%; bottom: 5px; width: 8px; height: 4px; margin-left: -4px; background: #a7f070; }
+  #rotate b { font-weight: normal; font-size: 24px; color: #a7f070; }
+  #rotate span { font-size: 16px; color: #94b0c2; line-height: 1.5; }
+  @keyframes turn { 0%, 20% { transform: rotate(0deg); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
+  @media (orientation: portrait) { body.touch-on #rotate { display: flex; } body.touch-on #touch { display: none; } }
+  @media (orientation: landscape) and (max-height: 520px) { #touch button { width: 60px; height: 60px; font-size: 13px; } #touch button.big { width: 68px; height: 68px; } #touch .jump { margin-bottom: 18px; } #touch { opacity: .85; } }
+  #game canvas { image-rendering: auto !important; box-shadow: 0 0 0 2px #1a1c2c, 0 0 40px rgba(115,239,247,.12); }
+
+  /* 로딩 화면 */
+  #loader { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #1a1c2c; gap: 14px; transition: opacity .3s; }
+  #loader h1 { margin: 0; font-size: 40px; color: #a7f070; letter-spacing: 2px; text-shadow: 3px 3px 0 #257179, -2px -2px 0 #1a1c2c; font-weight: normal; }
+  #loader p { margin: 0; color: #ffcd75; font-size: 16px; }
+  .bar { width: 220px; height: 14px; border: 2px solid #73eff7; background: #29366f; padding: 2px; }
+  .bar i { display: block; height: 100%; width: 5%; background: repeating-linear-gradient(90deg, #a7f070 0 6px, #38b764 6px 8px); transition: width .25s steps(6); }
+  #loader small { color: #566c86; font-family: monospace; }
+  .sprout { width: 16px; height: 16px; background: #38b764; box-shadow: 0 0 0 2px #1a1c2c; animation: hop .5s steps(2) infinite alternate; }
+  @keyframes hop { to { transform: translateY(-6px); } }
+
+  /* 오류 화면 */
+  #error { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(14,15,26,.94); padding: 20px; }
+  #error .box { max-width: 420px; width: 100%; border: 3px solid #b13e53; background: #1a1c2c; padding: 20px; text-align: center; box-shadow: 6px 6px 0 #000; }
+  #error h2 { margin: 0 0 8px; color: #ef7d57; font-weight: normal; font-size: 26px; }
+  #error p { margin: 6px 0; font-size: 16px; line-height: 1.4; }
+  #error code { display: block; margin: 10px 0; padding: 8px; background: #0e0f1a; color: #94b0c2; font-size: 12px; word-break: break-all; text-align: left; max-height: 120px; overflow: auto; }
+  #error button { font: inherit; font-size: 18px; padding: 8px 22px; margin-top: 6px; border: 3px solid #a7f070; background: #257179; color: #fff; cursor: pointer; box-shadow: 3px 3px 0 #000; }
+
+  /* 모바일 터치 버튼 */
+  #touch { display: none; position: fixed; inset: auto 0 0 0; z-index: 10; pointer-events: none;
+    padding: 0 max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-bottom)); justify-content: space-between; align-items: flex-end; }
+  body.touch-on #touch { display: flex; }
+  #touch .grp { display: flex; gap: 12px; pointer-events: auto; }
+  #touch button { pointer-events: auto; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(244,244,244,.7);
+    background: rgba(41,54,111,.55); color: #fff; font: inherit; font-size: 15px; touch-action: none; box-shadow: 0 4px 0 rgba(0,0,0,.5); }
+  #touch button.big { width: 82px; height: 82px; }
+  #touch button.on { background: rgba(167,240,112,.6); transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.5); }
+  #touch .fire { background: rgba(177,62,83,.6); }
+  #touch .jump { background: rgba(37,113,121,.6); margin-bottom: 30px; }
+  #mute-btn { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 8px; z-index: 11; font: inherit; font-size: 15px;
+    padding: 4px 9px; border: 2px solid #566c86; background: rgba(26,28,44,.8); color: #94b0c2; cursor: pointer; }
+  @media (orientation: portrait) { #touch { padding-bottom: max(28px, env(safe-area-inset-bottom)); } }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="loader">
+  <div class="sprout"></div>
+  <h1>덩어리 숲</h1>
+  <div class="bar"><i id="load-bar"></i></div>
+  <p id="load-msg">불러오는 중…</p>
+  <small>진담중국어 · PROTOTYPE</small>
+</div>
+
+<div id="error">
+  <div class="box">
+    <h2>앗, 문제가 생겼어요!</h2>
+    <p id="err-msg">게임을 불러오지 못했습니다.</p>
+    <code id="err-detail"></code>
+    <button type="button" onclick="location.reload()">다시 시도</button>
+  </div>
+</div>
+
+<div id="touch">
+  <div class="grp">
+    <button type="button" data-act="left" aria-label="왼쪽">◀</button>
+    <button type="button" data-act="right" aria-label="오른쪽">▶</button>
+  </div>
+  <div class="grp">
+    <button type="button" class="jump" data-act="jump" aria-label="점프">점프</button>
+    <button type="button" class="fire big" data-act="fire" aria-label="공격">공격</button>
+  </div>
+</div>
+<div id="rotate">
+  <div class="phone"></div>
+  <b>휴대폰을 가로로 돌려 주세요</b>
+  <span>덩어리 숲은 가로 화면 전용 게임이에요.<br>화면 자동 회전이 꺼져 있다면 켜 주세요.</span>
+</div>
+<button type="button" id="mute-btn" aria-label="소리 켜기/끄기">♪</button>
+
+<script>
+(function () {
+  'use strict';
+  window.DT = window.DT || {};
+  var started = false;
+
+  DT.setLoading = function (pct, msg) {
+    var b = document.getElementById('load-bar'); if (b) b.style.width = pct + '%';
+    var m = document.getElementById('load-msg'); if (m && msg) m.textContent = msg;
+  };
+  DT.hideLoading = function () {
+    started = true;
+    var l = document.getElementById('loader');
+    if (l) { l.style.opacity = '0'; setTimeout(function () { l.style.display = 'none'; }, 320); }
+  };
+  DT.showError = function (msg, detail) {
+    var e = document.getElementById('error');
+    document.getElementById('err-msg').textContent = msg || '알 수 없는 오류';
+    document.getElementById('err-detail').textContent = detail || '';
+    document.getElementById('err-detail').style.display = detail ? 'block' : 'none';
+    e.style.display = 'flex';
+  };
+  window.addEventListener('error', function (ev) {
+    if (!ev.message) return; // 리소스 404 등은 아래 로더가 처리
+    DT.showError('게임 실행 중 오류가 발생했습니다.', ev.message + (ev.filename ? '\n' + ev.filename.split('/').pop() + ':' + ev.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    var r = ev.reason; DT.showError('게임 실행 중 오류가 발생했습니다.', r && r.message ? r.message : String(r));
+  });
+
+  // Phaser: 로컬 vendor 파일 → CDN 순서로 시도
+  var PHASER = [
+    'vendor/phaser.min.js',
+    'https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/phaser/3.90.0/phaser.min.js',
+    'https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js',
+    'https://unpkg.com/phaser@3.80.1/dist/phaser.min.js'
+  ];
+  var GAME_SCRIPTS = [
+    'js/core.js', 'js/art-grids.js', 'js/default-data.js', 'js/input.js', 'js/audio.js', 'js/art.js',
+    'js/fx.js', 'js/scenes/menus.js', 'js/scenes/run.js', 'js/scenes/intro.js', 'js/scenes/game.js', 'js/scenes/quiz.js', 'js/main.js'
+  ];
+  var V = '?v=0.3.0';
+
+  function load(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = src; s.async = false;
+      s.onload = function () { res(src); };
+      s.onerror = function () { s.remove(); rej(new Error('불러오기 실패: ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadPhaser(i) {
+    if (i >= PHASER.length) return Promise.reject(new Error('Phaser 엔진을 어디에서도 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'));
+    DT.setLoading(8 + i * 4, '게임 엔진 불러오는 중…');
+    return load(PHASER[i]).then(function () {
+      if (!window.Phaser) throw new Error('no Phaser');
+    }).catch(function () { return loadPhaser(i + 1); });
+  }
+
+  loadPhaser(0).then(function () {
+    DT.setLoading(28, '게임 코드 불러오는 중…');
+    return GAME_SCRIPTS.reduce(function (p, src) { return p.then(function () { return load(src + V); }); }, Promise.resolve());
+  }).then(function () {
+    return DT.boot();
+  }).catch(function (err) {
+    DT.showError('게임을 불러오지 못했습니다.', err && err.message ? err.message : String(err));
+  });
+
+  setTimeout(function () {
+    if (!started && document.getElementById('error').style.display !== 'flex') {
+      DT.setLoading(90, '로딩이 오래 걸리고 있어요… 네트워크를 확인해 주세요.');
+    }
+  }, 15000);
+})();
+</script>
+</body>
+</html>
