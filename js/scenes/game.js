@@ -25,7 +25,7 @@
       this.climb = this.stage.climb || null;
       // 씬 객체는 재사용되므로 스테이지별 상태를 매번 초기화
       this.boss = null; this.goal = null; this.crumbles = null; this.movers = null; this.moverSprites = []; this.spikes = null;
-      this.gates = []; this.climbQuiz = null; this.hazardMul = 1;
+      this.gates = []; this.climbQuiz = null; this.hazardMul = 1; this.hudTime = null;
       this.hazard = null; this.hazardBody = null; this.riding = null; this.lastSec = undefined;
       this.lastCombo = null; this.pauseBox = null; this.flag = null; this.ambientFx = null;
       this.mapH = this.stage.map.length * DT.TILE;
@@ -42,7 +42,7 @@
       this.started = false; this.cleared = false; this.dead = false; this.isPaused = false; this.hurry = false;
       this.fireLocked = true; this.controlLocked = false; this.winPose = false; this.hitStopping = false;
       this.chainCombo = 0; this.chainUntil = 0;
-      this.strikeUntil = 0; this.dropUntil = 0; this.pushing = false; this.dropkick = false; this.strikeAnim = 'kick';
+      this.strikeUntil = 0; this.dropUntil = 0; this.pushing = false; this.dropkick = false; this.dk = null;
       this.inventory = []; this.completed = new Set(); this.dropIndex = 0;
       this.hudCache = {};
 
@@ -108,6 +108,11 @@
 
       this.buildHud();
       if (this.climb) this.setupClimb();
+      else if (!this.stage.boss) {
+        // 일반 스테이지: TIME 50 → 0이 되면 HURRY UP! (몬스터가 빨라짐)
+        this.hudTime = DT.ptext(this, 172, 1, 'TIME ' + Math.round(T.HURRY_TIME / 1000), { tint: 0xffcd75, depth: 41 });
+        this.ui.add(this.hudTime);
+      }
       this.readySequence();
       this.musicSpec = this.stage.boss ? { boss: this.stage.world } : { stage: this.stageIndex, world: this.stage.world, climb: !!this.climb };
       DT.Audio.music(true, this.musicSpec);
@@ -228,15 +233,36 @@
       if (body.velocity.y > 0) body.velocity.y = 0;
       return hit;
     }
+    // 경사로 아래쪽(밑면)은 벽: 옆에서 걸어 들어와 비스듬한 발판을 뚫고 지나가지 못하게 밀어냄
+    // (점프로 아래에서 위로 올라갈 때는 다른 발판처럼 통과)
+    blockSlopeUnderside(body) {
+      if (!body || !body.enable || body.velocity.y < -1) return;
+      const y0 = body.top, y1 = body.bottom, r0 = Math.floor(y0 / 16) - 1, r1 = Math.floor(y1 / 16) + 1;
+      const test = (ch, x) => {
+        const c = Math.floor(x / 16), lx = Math.floor(x) - c * 16;
+        for (let r = r0; r <= r1; r++) {
+          if (this.slopes[r + ',' + c] !== ch) continue;
+          const sY = this.slopeSurfaceY(ch, r, lx);
+          if (y1 > sY + 9 && y0 < sY + 9) return Math.min(16, sY + 9 - y0);   // 밑면에 파고든 깊이(45도라 가로=세로)
+        }
+        return 0;
+      };
+      const pr = test('\\', body.right - 0.5);   // ╲ 경사: 오른쪽으로 걸어 들어오면 막힘
+      if (pr > 0) { body.x -= pr; if (body.velocity.x > 0) body.velocity.x = 0; body.blocked.right = true; return; }
+      const pl = test('/', body.left + 0.5);       // ╱ 경사: 왼쪽으로 걸어 들어오면 막힘
+      if (pl > 0) { body.x += pl; if (body.velocity.x < 0) body.velocity.x = 0; body.blocked.left = true; }
+    }
     applySlopes() {
       if (!this.slopes || !Object.keys(this.slopes).length) { this.onSlope = null; return; }
       const p = this.player;
       this.onSlope = (!this.dead && this.time.now >= this.dropUntil) ? this.stickToSlope(p.body) : null;
+      if (!this.onSlope && !this.dead) this.blockSlopeUnderside(p.body);
       this.enemies.getChildren().forEach(e => {
         if (!e.active || e.state === 'dead' || (e.flyer && e.state === 'active')) { e.onSlope = null; return; }
         e.onSlope = this.stickToSlope(e.body);
+        if (!e.onSlope) this.blockSlopeUnderside(e.body);
       });
-      [this.frags, this.poops, this.waves].forEach(g => g.getChildren().forEach(o => { if (o.active) o.onSlope = this.stickToSlope(o.body); }));
+      [this.frags, this.poops, this.waves].forEach(g => g.getChildren().forEach(o => { if (o.active) { o.onSlope = this.stickToSlope(o.body); if (!o.onSlope) this.blockSlopeUnderside(o.body); } }));
       this.seeds.getChildren().forEach(sd => { if (sd.active && sd.mode === 'roll') this.stickToSlope(sd.body); });
     }
 
@@ -264,6 +290,8 @@
     /* ───────────── 이펙트 ───────────── */
     createFx() {
       const base = { emitting: false };
+      const soften = (em, k) => { const ex = em.explode.bind(em); em.explode = (n, x, y) => ex(Math.max(1, Math.round((n || 1) * k)), x, y); return em; };
+      this.softenFx = soften;
       this.fxLeaf = this.add.particles(0, 0, 'leaf', Object.assign({
         speed: { min: 40, max: 120 }, angle: { min: 0, max: 360 }, lifespan: { min: 250, max: 550 },
         gravityY: 300, rotate: { min: 0, max: 360 }, scale: { start: 1, end: 0.3 }
@@ -280,11 +308,13 @@
         speedX: { min: -40, max: 40 }, speedY: { min: -30, max: -5 }, lifespan: 300,
         scale: { start: 1, end: 0 }, tint: 0x94b0c2, alpha: { start: 0.8, end: 0 }
       }, base)).setDepth(8);
+      // 파편 이펙트 개수를 줄여 눈이 덜 어지럽게
+      soften(this.fxStar, 0.45); soften(this.fxLeaf, 0.6); soften(this.fxPx, 0.6);
       this.ambientFx = DT.ambient(this, this.theme, -5);
     }
 
     ring(x, y, tint, scale) {
-      const r = this.add.sprite(x, y, 'ring', 0).setTint(tint || 0xffffff).setScale(scale || 1).setDepth(29);
+      const r = this.add.sprite(x, y, 'ring', 0).setTint(tint || 0xffffff).setScale(Math.min(2, (scale || 1) * 0.7)).setDepth(29).setAlpha(0.8);
       r.play('fx_ring');
       r.once('animationcomplete', () => r.destroy());
     }
@@ -404,13 +434,12 @@
           this.pushing = true;
         }
       }
-      // 구체 옆에서 공격 버튼 → 발차기 / 주먹 / (공중) 드롭킥
-      if (!locked && !this.fireLocked && I.justDown('fire')) {
+      // 구체 옆에서 공격 버튼 → 드롭킥 (땅에서든 공중에서든)
+      if (!locked && !this.fireLocked && !this.dropkick && I.justDown('fire')) {
         const o = this.findOrb(this.facing, T.STRIKE_REACH, onGround ? 14 : 22);
         if (o) this.strike(o, onGround, time);
       }
-      if (this.dropkick && (onGround || time > this.strikeUntil)) { this.dropkick = false; }
-      p.setAngle(this.dropkick ? -28 * this.facing : 0);
+      this.updateDropkick(time, onGround);
 
       // 공격 (누르고 있으면 자동 연사)
       if (!locked && !this.fireLocked && I.isDown('fire') && time >= this.nextFireAt && time > this.strikeUntil) {
@@ -425,7 +454,7 @@
       let anim;
       if (this.winPose) anim = 'win';
       else if (time < this.hurtUntil) anim = 'hurt';
-      else if (time < this.strikeUntil) anim = this.strikeAnim;
+      else if (this.dropkick) anim = time < this.dk.hitAt ? 'tuck' : 'kick';
       else if (this.pushing) anim = 'push';
       else if (time < this.shootPoseUntil) anim = 'shoot';
       else if (!onGround) anim = b.velocity.y < 0 ? 'jump' : 'fall';
@@ -461,18 +490,45 @@
       return best;
     }
 
+    // 드롭킥: ① 웅크리며 살짝 뛰어오름(0.09초) → ② 몸을 뒤로 젖히고 두 발을 쭉 뻗어 구체를 '뻥'
     strike(e, onGround, time) {
       const p = this.player;
-      this.strikeUntil = time + 240;
-      if (!onGround) { this.strikeAnim = 'kick'; this.dropkick = true; p.body.setVelocity(this.facing * 130, -50); }
-      else { this.strikeAlt = !this.strikeAlt; this.strikeAnim = this.strikeAlt ? 'kick' : 'punch'; }
-      this.nextFireAt = time + 260;
-      const hx = (p.x + e.x) / 2, hy = (p.y + e.y) / 2;
-      const sp = this.add.sprite(hx, hy, 'spark', 0).setDepth(35).setScale(2);
-      sp.play('fx_spark'); sp.once('animationcomplete', () => sp.destroy());
-      this.fxStar.explode(6, hx, hy);
-      this.popText(hx, hy - 12, this.dropkick ? 'DROP KICK!' : this.strikeAnim === 'kick' ? 'KICK!' : 'PUNCH!', 0xffcd75);
-      this.launchOrb(e, this.facing);
+      this.dropkick = true;
+      this.dk = { target: e, dir: this.facing, hitAt: time + 90, done: false, ghostAt: 0 };
+      this.strikeUntil = time + 420;
+      this.knockUntil = time + 200;           // 뛰어드는 동안은 입력으로 속도가 덮이지 않게
+      p.body.setVelocity(this.facing * 120, onGround ? -150 : -70);
+      this.nextFireAt = time + 450;
+      DT.Audio.sfx('jump');
+    }
+
+    updateDropkick(time, onGround) {
+      const p = this.player, d = this.dk;
+      if (!this.dropkick) { if (p.angle) p.setAngle(0); return; }
+      if (!d.done && time >= d.hitAt) {
+        d.done = true;
+        const e = d.target;
+        if (e && e.active && e.state === 'sealed' && Math.abs(e.x - p.x) < 44 && Math.abs(e.y - p.y) < 30) {
+          const hx = e.x - d.dir * 9, hy = e.y + 2;   // 불꽃은 구체 쪽에 — 캐릭터 발차기 자세가 가려지지 않게
+          const sp = this.add.sprite(hx, hy, 'spark', 0).setDepth(35).setScale(2);
+          sp.play('fx_spark'); sp.once('animationcomplete', () => sp.destroy());
+          this.fxStar.explode(6, hx, hy);
+          this.popText(hx, hy - 14, 'DROP KICK!', 0xffcd75);
+          this.launchOrb(e, d.dir);
+          p.body.setVelocityX(-d.dir * 40);   // 차고 나서 살짝 튕겨 나옴
+        }
+      }
+      // 몸을 뒤로 젖힌 각도: 웅크릴 땐 살짝, 찰 땐 크게
+      p.setAngle((time < d.hitAt ? 10 : -40) * d.dir);
+      if (d.done && time > d.ghostAt) {     // 잔상
+        d.ghostAt = time + 45;
+        const g = this.add.image(p.x, p.y, p.texture.key, p.frame.name).setScale(DT.SPR).setFlipX(p.flipX)
+          .setAngle(p.angle).setAlpha(0.45).setTint(0xffe9a0).setDepth(9);
+        this.tweens.add({ targets: g, alpha: 0, duration: 180, onComplete: () => g.destroy() });
+      }
+      if (time > this.strikeUntil || (d.done && onGround && time > d.hitAt + 120)) {
+        this.dropkick = false; this.dk = null; p.setAngle(0);
+      }
     }
 
     shoot(time) {
@@ -581,7 +637,7 @@
         this.gates.push({ y, done: false, line, tag });
       });
       // HUD: 남은 시간 · 높이
-      this.hudTime = DT.ptext(this, 316, 10, 'TIME 00', { ox: 1, tint: 0xffcd75, depth: 41 });
+      this.hudTime = DT.ptext(this, 172, 1, 'TIME 00', { tint: 0xffcd75, depth: 41 });
       this.hudHeight = this.add.graphics().setDepth(41);
       this.ui.add([this.hudTime, this.hudHeight]);
       this.hazardName = c.hazard === 'thorn' ? '가시덩굴' : '독초';
@@ -954,7 +1010,7 @@
         this.banner('BOSS CLEAR! +20000', 0xffcd75, 2, 1600);
         b.body.checkCollision.none = true; b.setCollideWorldBounds(false);
         b.body.setVelocity(0, -200); b.setFlipY(true); b.crown.setVisible(false);
-        this.cameras.main.flash(200, 255, 255, 255);
+        this.cameras.main.flash(120, 255, 255, 255, true);
       });
     }
 
@@ -990,6 +1046,8 @@
 
     updateEnemy(e, time) {
       if (!e.active) return;
+      if (e.kickTag && e.state !== 'sealed') e.kickTag.setVisible(false);
+      if (e.dash && e.state !== 'active') this.showHalf(e, false);
       e.shell.setPosition(Math.round(e.x), Math.round(e.y));
       switch (e.state) {
         case 'spawn': e.body.setVelocityX(0); break;
@@ -1005,7 +1063,7 @@
       const b = e.body, onGround = b.blocked.down || b.touching.down || !!e.onSlope;
       // 봉인 게이지가 찰수록 느려짐 (구체에 갇히기 직전엔 거의 못 움직임)
       const slow = e.hits > 0 ? Math.max(0.3, 1 - 0.6 * e.hits / e.hp) : 1;
-      const spd = e.def.speed * (e.angry ? T.ANGRY_MULT : 1) * (this.hurry ? 1.15 : 1) * slow;
+      const spd = e.def.speed * (e.angry ? T.ANGRY_MULT : 1) * (this.hurry ? 1.3 : 1) * slow;
       if (time < e.knockUntil) return;
       if (b.blocked.left) e.dir = 1; else if (b.blocked.right) e.dir = -1;
       const p = this.player;
@@ -1213,10 +1271,18 @@
       if (e.hits > 0 && time - e.lastHitAt > T.HIT_DECAY_DELAY && time > e.nextDecayAt) {
         e.hits--; e.nextDecayAt = time + T.HIT_DECAY_STEP;
       }
-      if (e.hits > 0) {
-        const r = e.hits / e.hp;
-        e.shell.setVisible(true).setAlpha(0.25 + 0.4 * r).setScale((0.7 + 0.25 * r) * DT.SPR).setRotation(0);
-      } else e.shell.setVisible(false);
+      e.shell.setVisible(false);
+      this.showHalf(e, e.hits > 0);
+    }
+
+    // 반쯤 봉인(버둥거림): 구체 없이 점선 테두리만 빙글빙글 — 완성된 구체(꽉 찬 공)와 확실히 다르게
+    showHalf(e, on) {
+      if (!e.dash) {
+        e.dash = this.add.image(0, 0, 'orb_dash').setDepth(7).setScale(DT.SPR).setAlpha(0.6);
+        e.once('destroy', () => { if (e.dash) e.dash.destroy(); });
+      }
+      e.dash.setVisible(on);
+      if (on) e.dash.setPosition(Math.round(e.x), Math.round(e.y)).setRotation(this.time.now / 500);
     }
 
     hintText(str) {
@@ -1273,8 +1339,15 @@
       e.body.pushable = false;
       if (!this.sealHintShown) { this.sealHintShown = true; this.hintText('구체에 다가가 공격 버튼으로 차요! 밀거나 위에 올라탈 수도 있어요'); }
       e.play(e.kind + '_struggle');
-      e.shell.setVisible(true).setAlpha(0.95).setScale(1.7 * DT.SPR).setRotation(0);
+      e.shell.setVisible(true).setAlpha(1).setScale(1.7 * DT.SPR).setRotation(0);
       this.tweens.add({ targets: e.shell, scale: DT.SPR, duration: 260, ease: 'Back.easeOut' });
+      this.showHalf(e, false);
+      if (!e.kickTag) {
+        e.kickTag = DT.text(this, e.x, e.y - 16 * DT.SPR, '차기!', { font: 'ko', size: 8, color: '#a7f070', strokeThickness: 2, depth: 13 });
+        this.tweens.add({ targets: e.kickTag, alpha: 0.35, yoyo: true, repeat: -1, duration: 260 });
+        e.once('destroy', () => { if (e.kickTag) e.kickTag.destroy(); });
+      }
+      e.kickTag.setVisible(true);
       this.ring(e.x, e.y, 0xa7f070, 1);
       this.fxLeaf.explode(10, e.x, e.y);
       this.popText(e.x, e.y - 14, '+100', 0xa7f070);
@@ -1285,6 +1358,7 @@
 
     updateSealed(e, time) {
       const b = e.body, pushed = e.pushedAt === time;
+      if (e.kickTag) e.kickTag.setPosition(Math.round(e.x), Math.round(e.y - 16 * DT.SPR - 2 + Math.sin(time / 150) * 1.5));
       if (e.onSlope && !pushed) b.setVelocityX(DT.clamp(b.velocity.x + e.onSlope.down * 260 * this.game.loop.delta / 1000, -150, 150));
       else if (!pushed && time > (e.inchUntil || 0)) b.setVelocityX(b.velocity.x * 0.85);
       const left = this.S.sealTime + (e.kind === 'snail' ? 1500 : 0) - (time - e.sealedAt);
@@ -1380,7 +1454,10 @@
       if (e.state !== 'sealed') return;
       e.state = 'flying'; e.combo = 1; e.rollDir = dir; e.flyAt = this.time.now;
       e.body.setAllowGravity(true);
-      e.body.setVelocity(dir * (85 + this.S.orbSpeed * 0.1), -150);   // 살짝 포물선으로 2~3칸 앞에 떨어지며 펑
+      // 둥실: 중력을 줄여 약 0.9초 동안 살짝 떴다가 2~3칸 앞에 떨어지며 펑
+      e.body.setGravityY(-320);
+      e.body.setVelocity(dir * (50 + this.S.orbSpeed * 0.06), -190);
+      this.tweens.add({ targets: e.shell, scale: DT.SPR * 1.12, yoyo: true, repeat: 2, duration: 140 });
       e.shell.setAlpha(1);
       DT.Audio.sfx('kick');
     }
@@ -1388,17 +1465,17 @@
       const b = e.body, age = time - e.flyAt;
       e.shell.rotation += e.rollDir * 0.3; e.rotation = e.shell.rotation;
       if (time > (e.nextTrail || 0)) { this.fxLeaf.emitParticleAt(e.x, e.y, 1); e.nextTrail = time + 40; }
-      const landed = age > 160 && (b.blocked.down || b.touching.down || !!e.onSlope);
+      const landed = age > 300 && (b.blocked.down || b.touching.down || !!e.onSlope);
       const wall = b.blocked.left || b.blocked.right;
-      const hitEnemy = this.enemies.getChildren().some(o => o !== e && o.active && (o.state === 'active' || o.state === 'sealed' || o.state === 'spawn') &&
+      const hitEnemy = age > 150 && this.enemies.getChildren().some(o => o !== e && o.active && (o.state === 'active' || o.state === 'sealed' || o.state === 'spawn') &&
         Math.abs(o.x - e.x) < 16 && Math.abs(o.y - e.y) < 16);
       const hitBoss = this.boss && this.boss.state === 'active' && Math.abs(this.boss.x - e.x) < 30 && Math.abs(this.boss.y - e.y) < 34;
-      if (landed || wall || hitEnemy || hitBoss || age > 1200) this.explodeBlast(e);
+      if (landed || wall || hitEnemy || hitBoss || age > 1600) this.explodeBlast(e);
     }
     explodeBlast(e) {
       if (e.state !== 'flying') return;
       e.state = 'blasting';
-      e.body.setVelocity(0, 0);
+      e.body.setVelocity(0, 0); e.body.setGravityY(0);
       e.shell.setTintFill(0xffffff);
       const R = 40 + (this.S.orbBounces - 3) * 12;
       this.ring(e.x, e.y, 0xffcd75, R / 14);
@@ -1543,12 +1620,24 @@
       const e = a === this.player ? b : a;
       if (e.state !== 'active' || this.dead || this.cleared) return;
       if (this.time.now < this.invUntil) return;
+      if (e.hits > 0) {
+        // 버둥거리는 중: 아프지 않고 서로 툭 밀려남
+        if (this.time.now < (this.bumpUntil || 0)) return;
+        this.bumpUntil = this.time.now + 300;
+        const d = this.player.x < e.x ? -1 : 1;
+        this.player.body.setVelocity(d * 130, -110);
+        this.knockUntil = this.time.now + 160;
+        e.body.setVelocityX(-d * 40); e.knockUntil = this.time.now + 160;
+        DT.Audio.sfx('bump');
+        return;
+      }
       this.hurtPlayer(e);
     }
 
     hurtPlayer(e) {
       const now = this.time.now, p = this.player;
       this.hp--;
+      if (this.dropkick) { this.dropkick = false; this.dk = null; p.setAngle(0); }
       this.invUntil = now + T.INVINCIBLE_MS;
       this.hurtUntil = now + 350;
       this.knockUntil = now + 260;
@@ -1703,16 +1792,16 @@
       this.add.rectangle(0, 18, DT.W, 1, DT.C.teal, 1).setOrigin(0).setDepth(40);
       DT.ptext(this, 4, 1, '1P', { tint: 0xef7d57, depth: 41 });
       this.hudScore = DT.ptext(this, 20, 1, '0000000', { tint: 0xf4f4f4, depth: 41 });
-      DT.ptext(this, 112, 1, 'HI', { tint: 0xef7d57, depth: 41 });
-      this.hudHi = DT.ptext(this, 128, 1, '0000000', { tint: 0xffcd75, depth: 41 });
-      DT.ptext(this, 300, 1, 'STAGE ' + this.stage.id, { ox: 1, tint: 0x73eff7, depth: 41 });
+      DT.ptext(this, 92, 1, 'HI', { tint: 0xef7d57, depth: 41 });
+      this.hudHi = DT.ptext(this, 108, 1, '0000000', { tint: 0xffcd75, depth: 41 });
+      DT.ptext(this, 284, 1, this.stage.id, { ox: 1, tint: 0x73eff7, depth: 41 });
       this.hearts = [];
       for (let i = 0; i < T.MAX_HP_CAP; i++) this.hearts.push(this.add.image(4 + i * 9, 10, 'heart').setOrigin(0).setDepth(41));
       this.hudCombo = DT.ptext(this, 112, 10, '', { tint: 0xef7d57, depth: 41 });
-      DT.text(this, 236, 14, '조각', { font: 'ko', size: 7, color: '#94b0c2', stroke: null, ox: 1, depth: 41 });
+      DT.text(this, 200, 14, '조각', { font: 'ko', size: 7, color: '#94b0c2', stroke: null, ox: 1, depth: 41 });
       this.invSlots = [];
       for (let i = 0; i < 7; i++) {
-        this.invSlots.push(DT.text(this, 245 + i * 11, 14, '', { font: 'zh', size: 8, color: '#ffcd75', strokeThickness: 2, depth: 41 }));
+        this.invSlots.push(DT.text(this, 208 + i * 11, 14, '', { font: 'zh', size: 8, color: '#ffcd75', strokeThickness: 2, depth: 41 }));
       }
     }
 
@@ -1850,8 +1939,17 @@
       else this.syncScreenLayer();
 
       if (this.started && !this.cleared && !this.dead) {
+        if (this.hudTime && !this.climb && !this.hurry) {
+          const sec = Math.max(0, Math.ceil((T.HURRY_TIME - (time - this.stageStartAt)) / 1000));
+          if (sec !== this.lastSec) {
+            this.lastSec = sec;
+            this.hudTime.setText('TIME ' + DT.pad(sec, 2)).setTint(sec <= 10 ? 0xb13e53 : 0xffcd75);
+            if (sec <= 5 && sec > 0) DT.Audio.sfx('tick');
+          }
+        }
         if (!this.hurry && !this.boss && !this.climb && time - this.stageStartAt > T.HURRY_TIME) {
           this.hurry = true;
+          if (this.hudTime) this.hudTime.setText('HURRY!').setTint(0xb13e53);
           this.banner('HURRY UP!', 0xb13e53, 2.5, 1200);
           DT.Audio.setTempo(1.15);
           DT.Audio.sfx('hurry');

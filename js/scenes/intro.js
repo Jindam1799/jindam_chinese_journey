@@ -30,10 +30,10 @@
       this.sub = DT.text(this, 160, 214, '', { font: 'ko', size: 10, color: '#ffffff', stroke: null, align: 'center', depth: 51, wrap: 304 });
       this.sub.setLineSpacing(3);
       this.hint = DT.ptext(this, 6, 7, 'Z NEXT  SPACE SKIP', { tint: 0x566c86, depth: 51 });
-      const skip = DT.ptext(this, 292, 7, 'SKIP >>', { ox: 1, tint: 0xffcd75, depth: 52 });
-      this.add.zone(270, 11, 60, 20).setDepth(52).setInteractive({ useHandCursor: true }).on('pointerdown', (p, x, y, ev) => { ev && ev.stopPropagation && ev.stopPropagation(); this.finish(); });
+      const skip = DT.ptext(this, 284, 7, 'SKIP >>', { ox: 1, tint: 0xffcd75, depth: 52 });
+      this.add.zone(262, 11, 52, 20).setDepth(52).setInteractive({ useHandCursor: true }).on('pointerdown', (p, x, y, ev) => { ev && ev.stopPropagation && ev.stopPropagation(); this.finish(); });
       this.tweens.add({ targets: skip, alpha: 0.4, yoyo: true, repeat: -1, duration: 600 });
-      this.input.on('pointerdown', (p) => { if (p.worldY > 22 || p.worldX < 236) this.advance(); });
+      this.input.on('pointerdown', (p) => { if (DT.overlayJustClicked()) return; if (p.worldY > 22 || p.worldX < 230) this.advance(); });
       DT.Audio.music(true, 'story');
       this.orbit = [];
       this.nextShot();

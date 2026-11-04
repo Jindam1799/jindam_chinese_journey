@@ -61,10 +61,6 @@
   #touch button.on { background: rgba(167,240,112,.6); transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.5); }
   #touch .fire { background: rgba(177,62,83,.6); }
   #touch .jump { background: rgba(37,113,121,.6); margin-bottom: 30px; }
-  #gear-btn { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 52px; z-index: 11; font: inherit; font-size: 15px;
-    padding: 4px 9px; border: 2px solid #566c86; background: rgba(26,28,44,.8); color: #94b0c2; cursor: pointer; }
-  #mute-btn { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 8px; z-index: 11; font: inherit; font-size: 15px;
-    padding: 4px 9px; border: 2px solid #566c86; background: rgba(26,28,44,.8); color: #94b0c2; cursor: pointer; }
   @media (orientation: portrait) { #touch { padding-bottom: max(28px, env(safe-area-inset-bottom)); } }
 </style>
 </head>
@@ -104,8 +100,6 @@
   <b>휴대폰을 가로로 돌려 주세요</b>
   <span>덩어리 숲은 가로 화면 전용 게임이에요.<br>화면 자동 회전이 꺼져 있다면 켜 주세요.</span>
 </div>
-<button type="button" id="mute-btn" aria-label="소리 켜기/끄기">♪</button>
-<button type="button" id="gear-btn" aria-label="설정" onclick="window.DT && DT.openSettings && DT.openSettings()">⚙</button>
 
 <script>
 (function () {
@@ -149,7 +143,7 @@
     'js/core.js', 'js/art-grids.js', 'js/default-data.js', 'js/input.js', 'js/audio.js', 'js/art.js',
     'js/fx.js', 'js/scenes/menus.js', 'js/scenes/run.js', 'js/scenes/intro.js', 'js/scenes/extra.js', 'js/scenes/stagestory.js', 'js/scenes/game.js', 'js/scenes/quiz.js', 'js/main.js'
   ];
-  var V = '?v=0.6.1';
+  var V = '?v=0.6.3';
 
   function load(src) {
     return new Promise(function (res, rej) {

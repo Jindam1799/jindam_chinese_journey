@@ -54,15 +54,15 @@
       this.add.rectangle(0, 0, DT.W, 22, 0x000000, 0.85).setOrigin(0).setDepth(20);
       DT.ptext(this, 6, 7, 'STAGE ' + st.id, { tint: 0x73eff7, depth: 21 });
       DT.text(this, 160, 11, st.name, { font: 'ko', size: 10, color: '#ffcd75', stroke: null, depth: 21 });
-      const skip = DT.ptext(this, 292, 7, 'SKIP >>', { ox: 1, tint: 0xffcd75, depth: 21 });
+      const skip = DT.ptext(this, 284, 7, 'SKIP >>', { ox: 1, tint: 0xffcd75, depth: 21 });
       this.tweens.add({ targets: skip, alpha: 0.4, yoyo: true, repeat: -1, duration: 600 });
-      this.add.zone(270, 11, 60, 22).setDepth(22).setInteractive({ useHandCursor: true }).on('pointerdown', (p, x, y, ev) => { if (ev) ev.stopPropagation(); this.finish(); });
+      this.add.zone(262, 11, 52, 22).setDepth(22).setInteractive({ useHandCursor: true }).on('pointerdown', (p, x, y, ev) => { if (ev) ev.stopPropagation(); this.finish(); });
       this.box = DT.panel(this, 8, 188, 304, 48, { border: DT.C.yellow, fill: DT.C.ink, alpha: 0.92, depth: 20 });
       this.nameTag = DT.text(this, 18, 197, '', { font: 'ko', size: 9, color: '#ffcd75', stroke: null, ox: 0, depth: 21 });
       this.line = DT.text(this, 18, 207, '', { font: 'ko', size: 10, color: '#ffffff', stroke: null, ox: 0, oy: 0, depth: 21, wrap: 284, align: 'left' });
       this.line.setLineSpacing(2);
       DT.ptext(this, 306, 230, 'Z', { ox: 1, oy: 1, tint: 0x566c86, depth: 21 });
-      this.input.on('pointerdown', (p) => { if (p.worldY > 22 || p.worldX < 236) this.advance(); });
+      this.input.on('pointerdown', (p) => { if (DT.overlayJustClicked()) return; if (p.worldY > 22 || p.worldX < 230) this.advance(); });
       DT.Audio.music(true, st.boss ? { boss: st.world } : 'menu');
       this.next();
     }

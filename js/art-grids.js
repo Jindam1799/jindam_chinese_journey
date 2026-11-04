@@ -68,13 +68,20 @@
   const tukWin = rep(bobUp(rep(TUK, Object.assign({}, EYES_CLOSED, { 11: '..KGGGGGKRRKGGK.' }))),
     { 14: '...KBK.....KBK..', 15: '...BBB.....BBB..' });
 
-  // 구체 밀기 · 발차기 · 주먹 (오른쪽 기준)
+  // 구체 밀기 · 드롭킥 (오른쪽 기준)
   const tukPush1 = rep(TUK, { 8: '..KGgGGGWKGWKGKK', 9: '..KGGGGGKKGKKGKg', 10: '..KGGGGPGGGGGPKg', 11: '..KGGGGGGKKGGGKK',
     14: '...KBK.....KBK..', 15: '...BBB.....BBB..' });
   const tukPush2 = rep(tukPush1, { 14: '.....KBKKBK.....', 15: '.....BBBBBB.....' });
-  const tukKick = rep(TUK, { 8: '..KGgGGGGKGGKGK.', 9: '..KGGGGGKKGKKGK.', 11: '..KGGGGGKRRKGGK.',
-    13: '....KKKKKKKKKKK.', 14: '....KBK...KBBBBK', 15: '....BBB.........' });
-  const tukPunch = rep(TUK, { 8: '..KGgGGGGKGGKGK.', 9: '..KGGGGGKKGKKGKK', 10: '..KGGGGPGGGGGPgg', 11: '..KGGGGGKRRKGGKK' });
+  // 드롭킥: ① 몸을 웅크리고 뛰어오름 → ② 두 발을 앞으로 쭉 뻗음 (게임에서 몸을 뒤로 젖혀 회전)
+  const shiftL = (rows, n) => { const r = rows.map(l => l.slice(n) + '.'.repeat(n)); r.shiftL = n; return r; };
+  const tukKick = shiftL(rep(TUK, { 8: '..KGgGGGGKGGKGK.', 9: '..KGGGGGKKGKKGK.', 11: '..KGGGGGKRRKGGK.', 14: E, 15: E }), 2);
+  // 두 다리를 모아 오른쪽 아래로 쭉 (게임에서 몸을 뒤로 40도 젖히면 앞으로 수평 발차기가 됨)
+  tukKick[12] = '.KGGGGGGGGGKK...';
+  tukKick[13] = '..KKKKKKKKKBBK..';
+  tukKick[14] = '..........KBBBK.';
+  tukKick[15] = '...........KBBBK';
+  const tukPunch = rep(bobUp(rep(TUK, { 8: '..KGgGGGGKGGKGK.', 9: '..KGGGGGKKGKKGK.' })),
+    { 13: '.....KBKKBK.....', 14: '......BBBB......', 15: E });
 
   /* ───────── 혼동버섯 ───────── */
   const MUSH = [

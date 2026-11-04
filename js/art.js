@@ -59,7 +59,8 @@
         const t = rows.findIndex(line => line.indexOf('K') >= 0);
         const out = r.slice();
         for (let i = 0; i < t; i++) out[i] = '................';
-        topper.forEach((line, i) => { const y = t - topper.length + i; if (y >= 0) out[y] = line; });
+        const sh = rows.shiftL || 0;
+        topper.forEach((line, i) => { const y = t - topper.length + i; if (y >= 0) out[y] = line.slice(sh) + '.'.repeat(sh); });
         r = out;
       }
       return r;
@@ -459,6 +460,31 @@
       addSingle(scene, 'spore', 8, 8, (ctx) => { disc(ctx, 4, 4, 3, '#b55088'); disc(ctx, 3, 3, 1, '#ffd0f0'); px(ctx, 6, 5, '#7a2f6a'); });
       Object.keys(g.deco).forEach(k => addSheet(scene, 'deco_' + k, [g.deco[k]], P));
 
+      // 화면 위 버튼 판 (14x14, 게임 HUD 색과 맞춤)
+      const plate = (ctx) => {
+        rect(ctx, 1, 0, 12, 14, '#1a1c2c'); rect(ctx, 0, 1, 14, 12, '#1a1c2c');
+        rect(ctx, 2, 1, 10, 12, '#ffcd75'); rect(ctx, 1, 2, 12, 10, '#ffcd75');
+        rect(ctx, 2, 2, 10, 10, '#29366f'); rect(ctx, 2, 2, 10, 2, '#3b5dc9');
+      };
+      addSingle(scene, 'btn_gear', 14, 14, (ctx) => {
+        plate(ctx);
+        disc(ctx, 7, 7, 3, '#f4f4f4');
+        [[7, 3], [7, 11], [3, 7], [11, 7], [4, 4], [10, 4], [4, 10], [10, 10]].forEach(p => px(ctx, p[0], p[1], '#f4f4f4'));
+        px(ctx, 7, 7, '#29366f'); px(ctx, 6, 7, '#29366f'); px(ctx, 7, 6, '#29366f'); px(ctx, 8, 7, '#29366f'); px(ctx, 7, 8, '#29366f');
+      });
+      const note = (ctx) => {
+        rect(ctx, 8, 3, 1, 7, '#f4f4f4'); rect(ctx, 9, 3, 2, 1, '#f4f4f4'); rect(ctx, 10, 4, 1, 2, '#f4f4f4');
+        disc(ctx, 6, 10, 1, '#f4f4f4'); rect(ctx, 5, 9, 3, 2, '#f4f4f4');
+      };
+      addSingle(scene, 'btn_music', 14, 14, (ctx) => { plate(ctx); note(ctx); px(ctx, 3, 4, '#a7f070'); px(ctx, 4, 3, '#a7f070'); });
+      addSingle(scene, 'btn_music_off', 14, 14, (ctx) => {
+        plate(ctx); note(ctx);
+        for (let i = 0; i < 9; i++) { px(ctx, 3 + i, 3 + i, '#b13e53'); px(ctx, 3 + i, 4 + i, '#b13e53'); }
+      });
+      // 반쯤 봉인 표시: 점선 테두리
+      addSingle(scene, 'orb_dash', 20, 20, (ctx) => {
+        for (let a = 0; a < 24; a++) { if (a % 2) continue; const t = a / 24 * Math.PI * 2; px(ctx, 10 + Math.cos(t) * 9, 10 + Math.sin(t) * 9, '#f4f4f4'); px(ctx, 10 + Math.cos(t + 0.08) * 9, 10 + Math.sin(t + 0.08) * 9, '#f4f4f4'); }
+      });
       addSingle(scene, 'orb', 20, 20, drawOrb);
       addSingle(scene, 'orb_tuk', 20, 20, drawOrb);
       addSingle(scene, 'orb_pong', 20, 20, drawOrbPong);
@@ -593,8 +619,8 @@
         mk(h + '_hurt', t, [8], 1);
         mk(h + '_win', t, [9, 0], 4);
         mk(h + '_push', t, [10, 11], 6);
-        mk(h + '_kick', t, [12], 1);
-        mk(h + '_punch', t, [13], 1);
+        mk(h + '_tuck', t, [13], 1);   // 드롭킥 준비 (웅크림)
+        mk(h + '_kick', t, [12], 1);   // 드롭킥 (두 발 쭉)
       });
       DT.ENEMY_KINDS.forEach(k => {
         mk(k + '_walk', k, [0, 1], k === 'thief' || k === 'bird' ? 8 : 5);

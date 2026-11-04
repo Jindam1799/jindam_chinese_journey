@@ -3,7 +3,7 @@
   'use strict';
   const DT = (window.DT = window.DT || {});
 
-  DT.VERSION = '0.6.1';
+  DT.VERSION = '0.6.3';
   DT.W = 320;   // 논리 해상도 (16px 타일 20 x 15)
   DT.H = 240;
   DT.TILE = 16;
@@ -46,9 +46,9 @@
 
     MAX_HP_CAP: 6,
     PUSH_SPEED: 38,          // 구체를 밀 때 속도
-    STRIKE_REACH: 22,        // 발차기·주먹이 닿는 거리
+    STRIKE_REACH: 22,        // 드롭킥이 닿는 거리
     INVINCIBLE_MS: 1600,
-    HURRY_TIME: 60000,
+    HURRY_TIME: 50000,       // 일반 스테이지 제한 시간 (다 되면 몬스터가 빨라짐)
     COMBO_BASE: 500          // 연쇄 n번째 = 500 x n 점
   };
 
@@ -201,7 +201,10 @@
     cam.setRoundPixels(true);
     // 설정에서 '화면 흔들림'을 끄면 흔들림 없음
     const shake = cam.shake.bind(cam);
-    cam.shake = (d, i, f) => (DT.store.get('dentree_shake', '1') === '1' ? shake(Math.min(d, 220) * 0.8, (i || 0.005) * 0.45, f) : cam);
+    cam.shake = (d, i, f) => (DT.store.get('dentree_shake', '1') === '1' ? shake(Math.min(d, 160) * 0.7, Math.min((i || 0.005) * 0.2, 0.0018), f) : cam);
+    // 화면 번쩍임은 눈이 어지러워서, 꼭 필요한 순간(force=true)에만 짧게
+    const flash = cam.flash.bind(cam);
+    cam.flash = (d, r, g, b, force) => (force === true ? flash(Math.min(d, 120), r, g, b, true) : cam);
     return cam;
   };
 

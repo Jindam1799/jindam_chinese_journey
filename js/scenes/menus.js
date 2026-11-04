@@ -15,6 +15,7 @@
       DT.FX.build(this);
       DT.setLoading(100, '완료!');
       DT.hideLoading();
+      this.scene.launch('Overlay');
       this.scene.start('Title');
     }
   }
@@ -59,7 +60,7 @@
       DT.text(this, 160, 198, '← →  이동     SPACE  점프     Z  씨앗탄', { font: 'ko', size: 8, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 2 });
       DT.text(this, 160, 211, this.isTouch() ? '◀▶ 메뉴 고르기 · 공격 버튼 결정' : '←→ 메뉴 고르기 · Z 결정', { font: 'ko', size: 8, color: '#ffcd75', stroke: '#1a1c2c', strokeThickness: 2 });
       DT.ptext(this, 4, 3, 'HI ' + DT.pad(DT.getHi(), 7), { tint: 0xffcd75 });
-      DT.ptext(this, 316, 3, 'V' + DT.VERSION, { ox: 1, tint: 0x566c86 });
+      DT.ptext(this, 4, 12, 'V' + DT.VERSION, { tint: 0x566c86 });
       DT.text(this, 160, 231, DT.COPYRIGHT, { font: 'ko', size: 7, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 2 });
 
       this.starting = false;
@@ -129,7 +130,7 @@
       });
       this.ready = false;
       this.time.delayedCall(600, () => { this.ready = true; });
-      this.input.on('pointerdown', () => this.retry());
+      this.input.on('pointerdown', () => { if (!DT.overlayJustClicked()) this.retry(); });
     }
     retry() {
       if (!this.ready) return;
@@ -173,7 +174,7 @@
       this.ready = false;
       this.time.delayedCall(1200, () => { this.ready = true; });
       DT.text(this, 160, 232, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#e8f4ff', strokeThickness: 2 });
-      this.input.on('pointerdown', () => this.ready && this.leave());
+      this.input.on('pointerdown', () => this.ready && !DT.overlayJustClicked() && this.leave());
     }
     leave() {
       this.ready = false;

@@ -54,7 +54,7 @@
       const s = scene.add.sprite(Math.round(x), Math.round(y), 'fx_' + key);
       s.setOrigin(e.pivot[0] / e.frameSize[0], e.pivot[1] / e.frameSize[1]);
       if (opt.flip) s.setFlipX(true);
-      if (opt.scale) s.setScale(opt.scale);
+      s.setScale((opt.scale || 1) * 0.8);
       if (opt.alpha !== undefined) s.setAlpha(opt.alpha);
       s.setDepth(opt.depth === undefined ? 32 : opt.depth);
       s.play('fxa_' + key);

@@ -35,7 +35,7 @@
   DT.openSettings = function () {
     const g = DT.game; if (!g) return;
     if (g.scene.isActive('Settings')) return;
-    const under = g.scene.getScenes(true).map(s => s.sys.settings.key).filter(k => k !== 'Boot');
+    const under = g.scene.getScenes(true).map(s => s.sys.settings.key).filter(k => k !== 'Boot' && k !== 'Overlay');
     under.forEach(k => g.scene.pause(k));
     g.scene.run('Settings', { under });
     g.scene.bringToTop('Settings');
@@ -164,7 +164,7 @@
       DT.text(this, 160, 231, DT.COPYRIGHT, { font: 'ko', size: 6, color: '#e8f4ff', strokeThickness: 2 });
       this.ready = false;
       this.time.delayedCall(500, () => { this.ready = true; });
-      this.input.on('pointerdown', () => this.leave());
+      this.input.on('pointerdown', () => { if (!DT.overlayJustClicked()) this.leave(); });
       if (this.highlight >= 0) DT.Audio.sfx('perfect');
     }
     leave() { if (!this.ready) return; this.ready = false; DT.Audio.sfx('select'); this.scene.start(this.next.key || this.next, this.next.data || {}); }
@@ -335,6 +335,43 @@
   }
 
   DT.DexScene = DexScene;
+
+  /* ───────── 화면 위 버튼: 설정(톱니) · 소리(음표) — 모든 화면 오른쪽 위에 떠 있음 ───────── */
+  let overlayClickAt = 0;
+  DT.overlayJustClicked = () => performance.now() - overlayClickAt < 120;
+  class OverlayScene extends Phaser.Scene {
+    constructor() { super('Overlay'); }
+    create() {
+      DT.setupCamera(this);
+      const mk = (x, key, act) => {
+        const b = this.add.image(x, 9, key).setInteractive({ useHandCursor: true });
+        b.on('pointerover', () => b.setScale(1.12));
+        b.on('pointerout', () => b.setScale(1));
+        b.on('pointerdown', () => {
+          overlayClickAt = performance.now();
+          DT.Audio.unlock();
+          this.tweens.add({ targets: b, y: 10, yoyo: true, duration: 60 });
+          act();
+        });
+        return b;
+      };
+      this.gear = mk(298, 'btn_gear', () => {
+        if (this.game.scene.isActive('Settings')) this.game.scene.getScene('Settings').close();
+        else DT.openSettings();
+      });
+      this.music = mk(312, 'btn_music', () => DT.Audio.toggleMute());
+    }
+    update() {
+      this.music.setTexture(DT.Audio.muted ? 'btn_music_off' : 'btn_music');
+      // 다른 화면이 바뀌어도 항상 맨 위에
+      const sm = this.game.scene;
+      if (sm.getIndex('Overlay') !== sm.scenes.length - 1) sm.bringToTop('Overlay');
+      const boot = sm.isActive('Boot');
+      this.gear.setVisible(!boot); this.music.setVisible(!boot);
+    }
+  }
+  DT.OverlayScene = OverlayScene;
+
   DT.SettingsScene = SettingsScene;
   DT.HallScene = HallScene;
   DT.NameEntryScene = NameEntryScene;
